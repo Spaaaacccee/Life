@@ -1,0 +1,22 @@
+body, html, div#main, div#c {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Source Sans', 'Helvetica Neue', 'Segoe UI', 'Arial', sans-serif;
+    color:white;
+    font-weight: 300
+}
+
+div#debugInfo {
+    position: absolute;
+    top:0;
+    right:0;
+    text-align: right;
+    margin:50px;
+    opacity:0.2;
+}
+
+div#debugInfo > p {
+    margin:5px;
+}
