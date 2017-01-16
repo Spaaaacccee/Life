@@ -26,7 +26,6 @@
         x: 4000,
         y: 6000
     };
-    var jointId
 
     function randomIntFromInterval(min, max) {
         return Math.floor(Math.random() * (max - min + 1) + min);
@@ -205,7 +204,7 @@
             var pairs = e.pairs;
             for (var i = 0; i < pairs.length; i++) {
                 var pair = pairs[i];
-                if ((pair.bodyA.parentBlock.isSticky || pair.bodyB.parentBlock.isSticky)/* && !(pair.bodyA.parentBlock.isSticky && pair.bodyB.parentBlock.isSticky)*/) {
+                if ((pair.bodyA.parentBlock.isSticky || pair.bodyB.parentBlock.isSticky) && !(pair.bodyA.parentBlock.isSticky && pair.bodyB.parentBlock.isSticky)) {
                     Matter.Vertices.clockwiseSort(pair.bodyA.vertices);
                     Matter.Vertices.clockwiseSort(pair.bodyB.vertices);
                     var midPointsA = [];
