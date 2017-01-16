@@ -296,7 +296,6 @@
                         },
                         bodyB: pair.bodyB
                     })
-                    if()
                     world.add(phys.world, [constraintA, constraintB])
 
                     /*                    var hit = raycast(phys.world.bodies,core.position,bl.position,p.dist(core.position.x,core.position.y,bl.position.x,bl.position.y))
