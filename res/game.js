@@ -94,7 +94,7 @@
         var box = bodies.rectangle(o.x, o.y, o.width, o.height);
         Matter.Vertices.clockwiseSort(box.vertices);
         Matter.Body.setAngle(box, o.rot)
-        box.frictionAir = 0.1
+        box.frictionAir = 0.5
         box.friction = 0
         box.parentBlock = self;
         world.add(phys.world, [box]);
@@ -117,8 +117,8 @@
             rot: randomIntFromInterval(0, 200) / 100
         });
         b.isFood = true;
-        b.physics.mass = 0.01;
-        b.physics.frictionAir = 0.0004;
+        //b.physics.mass = 0.01;
+        //b.physics.frictionAir = 0.0004;
         return b;
     }
 
@@ -151,6 +151,7 @@
             x: cameraLocation.x,
             y: cameraLocation.y
         }
+
         var b = new block({
             x: obj.x,
             y: obj.y,
@@ -158,6 +159,15 @@
                 fill: ["#1ABC9C"],
             }
         });
+        world.remove(phys.world, [b.physics])
+            //world.remove(phys.world,[b.physics])
+        var c = Matter.Body.create({
+            parts: [b.physics],
+            frictionAir:0.5,
+            friction:0
+        });
+        world.add(phys.world, [c])
+        this.c = c;
         this.b = b;
         b.isSticky = true;
         Matter.Body.setAngle(b.physics, 0)
@@ -172,159 +182,116 @@
                 //var dist = p.dist(mousePos.x, mousePos.y, -cameraLocation.x + innerWidth / 2, -cameraLocation.y + innerHeight / 2);
                 var offsetX = (mousePos.x - self.location.x + cameraLocation.x - innerWidth / 2) * -1
                 var offsetY = (mousePos.y - self.location.y + cameraLocation.y - innerHeight / 2) * -1
-                Matter.Body.applyForce(self.b.physics, {
+                Matter.Body.applyForce(self.c, {
                     x: self.location.x + offsetX,
                     y: self.location.y + offsetY
                 }, {
                     x: -offsetX * 0.000005,
                     y: -offsetY * 0.000005
                 });
-                self.location = self.b.physics.position
+                self.location = self.c.position
             }
             execQueue.push(mouseController)
         })()
         Matter.Events.on(phys, 'collisionStart', function (e) {
-            function raycast(bodies, start, r, dist) {
-                var normRay = Matter.Vector.normalise(r);
-                var ray = normRay;
-                var point = Matter.Vector.add(ray, start);
-                for (var i = 0; i < dist; i++) {
-                    ray = Matter.Vector.mult(normRay, i);
-                    ray = Matter.Vector.add(start, ray);
-                    var bod = Matter.Query.point(bodies, ray)[0];
-                    if (bod) {
-                        return {
-                            point: ray,
-                            body: bod
-                        };
-                    }
-                }
-                return;
-            }
             var pairs = e.pairs;
             for (var i = 0; i < pairs.length; i++) {
                 var pair = pairs[i];
                 if ((pair.bodyA.parentBlock.isSticky || pair.bodyB.parentBlock.isSticky) && !(pair.bodyA.parentBlock.isSticky && pair.bodyB.parentBlock.isSticky)) {
-                    Matter.Vertices.clockwiseSort(pair.bodyA.vertices);
-                    Matter.Vertices.clockwiseSort(pair.bodyB.vertices);
-                    var midPointsA = [];
-                    var midPointsB = [];
-                    var smallestDist = Infinity;
-                    var midAIndex;
-                    var midBIndex;
-                    for (var i = 0; i < pair.bodyA.vertices.length; i++) {
-                        var A = pair.bodyA.vertices;
-                        var B = pair.bodyB.vertices;
-                        midPointsA.push(Matter.Vertices.mean([A[i % A.length], A[(i + 1) % A.length]]))
-                        midPointsB.push(Matter.Vertices.mean([B[i % B.length], B[(i + 1) % B.length]]))
-                    }
-                    for (var i = 0; i < midPointsA.length; i++) {
-                        for (var j = 0; j < midPointsB.length; j++) {
-                            var d = p.dist(midPointsA[i].x, midPointsA[i].y, midPointsB[j].x, midPointsB[j].y)
-                            if (d < smallestDist) {
-                                smallestDist = d;
-                                midAIndex = i;
-                                midBIndex = j;
+                    (function () {
+                        var ligament;
+                        var core = pair.bodyA.parentBlock.isSticky ? (function () {
+                            ligament = pair.bodyB
+                            return pair.bodyA
+                        })() : (function () {
+                            ligament = pair.bodyA
+                            return pair.bodyB
+                        })();
+                        Matter.Vertices.clockwiseSort(pair.bodyA.vertices);
+                        Matter.Vertices.clockwiseSort(pair.bodyB.vertices);
+                        var midPointsA = [];
+                        var midPointsB = [];
+                        var smallestDist = Infinity;
+                        var midAIndex;
+                        var midBIndex;
+                        for (var i = 0; i < pair.bodyA.vertices.length; i++) {
+                            var A = pair.bodyA.vertices;
+                            var B = pair.bodyB.vertices;
+                            midPointsA.push(Matter.Vertices.mean([A[i % A.length], A[(i + 1) % A.length]]))
+                            midPointsB.push(Matter.Vertices.mean([B[i % B.length], B[(i + 1) % B.length]]))
+                        }
+                        for (var i = 0; i < midPointsA.length; i++) {
+                            for (var j = 0; j < midPointsB.length; j++) {
+                                var d = p.dist(midPointsA[i].x, midPointsA[i].y, midPointsB[j].x, midPointsB[j].y)
+                                if (d < smallestDist) {
+                                    smallestDist = d;
+                                    midAIndex = i;
+                                    midBIndex = j;
 
+                                }
                             }
                         }
-                    }
-                    console.log(smallestDist)
-
-                    function indexToPosition(index, rotation) {
-                        var a;
-                        switch (index) {
-                            case 0:
-                                a = {
-                                    x: -10,
-                                    y: -10
-                                }
-                                break;
-                            case 1:
-                                a = {
-                                    x: 10,
-                                    y: -10
-                                }
-                                break;
-                            case 2:
-                                a = {
-                                    x: 10,
-                                    y: 10
-                                }
-                                break;
-                            case 3:
-                                a = {
-                                    x: -10,
-                                    y: 10
-                                }
-                                break;
-                        }
-                        Matter.Vertices.rotate([a], rotation, {
-                            x: 0,
-                            y: 0
-                        })
-                        return a
-                    }
-
-
-                    var constraintA = Matter.Constraint.create({
-                        stiffness: 1,
-                        length: 0.001,
-                        pointA: {
-                            x: pair.bodyA.vertices[midAIndex].x - pair.bodyA.position.x,
-                            y: pair.bodyA.vertices[midAIndex].y - pair.bodyA.position.y,
-                        },
-                        bodyA: pair.bodyA,
-                        pointB: {
-                            x: pair.bodyB.vertices[(midBIndex+1)%4].x - pair.bodyB.position.x,
-                            y: pair.bodyB.vertices[(midBIndex+1)%4].y - pair.bodyB.position.y,
-                        },
-                        bodyB: pair.bodyB
-                    })
-                    var constraintB = Matter.Constraint.create({
-                        stiffness: 1,
-                        length: 0.001,
-                        pointA: {
-                            x: pair.bodyA.vertices[(midAIndex+1)%4].x - pair.bodyA.position.x,
-                            y: pair.bodyA.vertices[(midAIndex+1)%4].y - pair.bodyA.position.y,
-                        },
-                        bodyA: pair.bodyA,
-                        pointB: {
-                            x: pair.bodyB.vertices[midBIndex].x - pair.bodyB.position.x,
-                            y: pair.bodyB.vertices[midBIndex].y - pair.bodyB.position.y,
-                        },
-                        bodyB: pair.bodyB
-                    })
-                    world.add(phys.world, [constraintA, constraintB])
-
-                    /*                    var hit = raycast(phys.world.bodies,core.position,bl.position,p.dist(core.position.x,core.position.y,bl.position.x,bl.position.y))
-                                        console.log(hit);
-                                        var constraint = Matter.Constraint.create({
-                                            stiffness: 1,
-                                            length: blockSize,
-                                            pointA: {
-                                                x: 0,
-                                                y: 0
-                                            },
-                                            bodyA: pair.bodyA,
-                                            pointB: {
-                                                x: 0,
-                                                y: 0
-                                            },
-                                            bodyB: pair.bodyB
-                                        })
-                                        world.add(phys.world, [constraint])*/
-                    for (var name in {
+                        var constraintA = Matter.Constraint.create({
+                            stiffness: 1,
+                            length: 0.00000001,
+                            pointA: {
+                                x: pair.bodyA.vertices[midAIndex].x - pair.bodyA.position.x,
+                                y: pair.bodyA.vertices[midAIndex].y - pair.bodyA.position.y,
+                            },
                             bodyA: pair.bodyA,
+                            pointB: {
+                                x: pair.bodyB.vertices[(midBIndex + 1) % 4].x - pair.bodyB.position.x,
+                                y: pair.bodyB.vertices[(midBIndex + 1) % 4].y - pair.bodyB.position.y,
+                            },
                             bodyB: pair.bodyB
-                        }) {
-                        pair[name].parentBlock.isSticky = true;
-                        pair[name].parentBlock.updateLocation({
-                            options: {
-                                fill: ["#1ABC9C"]
-                            }
-                        });
-                    }
+                        })
+                        var constraintB = Matter.Constraint.create({
+                            stiffness: 1,
+                            length: 0.00000001,
+                            pointA: {
+                                x: pair.bodyA.vertices[(midAIndex + 1) % 4].x - pair.bodyA.position.x,
+                                y: pair.bodyA.vertices[(midAIndex + 1) % 4].y - pair.bodyA.position.y,
+                            },
+                            bodyA: pair.bodyA,
+                            pointB: {
+                                x: pair.bodyB.vertices[midBIndex].x - pair.bodyB.position.x,
+                                y: pair.bodyB.vertices[midBIndex].y - pair.bodyB.position.y,
+                            },
+                            bodyB: pair.bodyB
+                        })
+                        var constraintC = Matter.Constraint.create({
+                            stiffness: 1,
+                            length: blockSize,
+                            pointA: {
+                                x: 0,
+                                y: 0,
+                            },
+                            bodyA: pair.bodyA,
+                            pointB: {
+                                x: 0,
+                                y: 0,
+                            },
+                            bodyB: pair.bodyB
+                        })
+                        world.add(phys.world, [constraintA, constraintB, constraintC])
+                        for (var name in {
+                                bodyA: pair.bodyA,
+                                bodyB: pair.bodyB
+                            }) {
+                            pair[name].parentBlock.isSticky = true;
+                            pair[name].parentBlock.updateLocation({
+                                options: {
+                                    fill: ["#1ABC9C"]
+                                }
+                            });
+                        }
+                        setTimeout(function () {
+                            world.remove(phys.world, [ligament, constraintA, constraintB, constraintC]);
+                            var clone = char.c.parts.slice(0);
+                            clone.push(ligament)
+                            Matter.Body.setParts(char.c, clone, false);
+                        }, 500)
+                    })()
 
                 }
             }
@@ -375,7 +342,7 @@
                     p.translate(tX, tY)
                     p.rotate(drawQueue[i].obj.rot)
                     p[drawQueue[i].type](0, 0, drawQueue[i].obj.width, drawQueue[i].obj.height)
-                    //p.rect(0, -10, 5, 5)
+                        //p.rect(0, -10, 5, 5)
                     p.pop()
                 }
 
