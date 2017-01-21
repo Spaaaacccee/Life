@@ -8,6 +8,10 @@ body, html, div#main, div#c {
     font-weight: 300
 }
 
+div#main {
+    display:block
+}
+
 div#debugInfo {
     position: absolute;
     top:0;

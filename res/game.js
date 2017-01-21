@@ -26,6 +26,7 @@
         x: 4000,
         y: 6000
     };
+    var render
 
     function randomIntFromInterval(min, max) {
         return Math.floor(Math.random() * (max - min + 1) + min);
@@ -75,16 +76,17 @@
 
     var block = function (obj) {
         var self = this;
+        this.isCore = obj.isCore
         var o = obj;
         o.width = blockSize;
         o.height = blockSize;
-        o.x = obj.x
-        o.y = obj.y;
         o.rot = obj.rot || 0;
+        o.rot = obj.isCore ? char ? char.c.angle : o.rot : o.rot;
         this.updateLocation = function (obj) {
             o.x = obj.x || o.x
             o.y = obj.y || o.y
             o.rot = obj.rot || o.rot
+            o.rot = self.isCore ? char ? char.c.angle : o.rot : o.rot;
             o.options = obj.options || o.options
             self.visual.deleteFromDrawQueue();
             self.visual = rect(o);
@@ -124,7 +126,7 @@
 
     //Food Generator Settings
 
-    var foodAmount = 600
+    var foodAmount = 40
 
     var foodGenerator = function () {
         for (var i = 0; i < foodAmount; i++) {
@@ -155,6 +157,7 @@
         var b = new block({
             x: obj.x,
             y: obj.y,
+            isCore: true,
             options: {
                 fill: ["#1ABC9C"],
             }
@@ -163,8 +166,8 @@
             //world.remove(phys.world,[b.physics])
         var c = Matter.Body.create({
             parts: [b.physics],
-            frictionAir:0.5,
-            friction:0
+            frictionAir: 0.5,
+            friction: 0
         });
         world.add(phys.world, [c])
         this.c = c;
@@ -235,29 +238,29 @@
                             stiffness: 1,
                             length: 0.00000001,
                             pointA: {
-                                x: pair.bodyA.vertices[midAIndex].x - pair.bodyA.position.x,
-                                y: pair.bodyA.vertices[midAIndex].y - pair.bodyA.position.y,
+                                x: pair.bodyA.vertices[midAIndex].x - pair.bodyA.parent.position.x,
+                                y: pair.bodyA.vertices[midAIndex].y - pair.bodyA.parent.position.y,
                             },
-                            bodyA: pair.bodyA,
+                            bodyA: pair.bodyA.parent,
                             pointB: {
-                                x: pair.bodyB.vertices[(midBIndex + 1) % 4].x - pair.bodyB.position.x,
-                                y: pair.bodyB.vertices[(midBIndex + 1) % 4].y - pair.bodyB.position.y,
+                                x: pair.bodyB.vertices[(midBIndex + 1) % 4].x - pair.bodyB.parent.position.x,
+                                y: pair.bodyB.vertices[(midBIndex + 1) % 4].y - pair.bodyB.parent.position.y,
                             },
-                            bodyB: pair.bodyB
+                            bodyB: pair.bodyB.parent
                         })
                         var constraintB = Matter.Constraint.create({
                             stiffness: 1,
                             length: 0.00000001,
                             pointA: {
-                                x: pair.bodyA.vertices[(midAIndex + 1) % 4].x - pair.bodyA.position.x,
-                                y: pair.bodyA.vertices[(midAIndex + 1) % 4].y - pair.bodyA.position.y,
+                                x: pair.bodyA.vertices[(midAIndex + 1) % 4].x - pair.bodyA.parent.position.x,
+                                y: pair.bodyA.vertices[(midAIndex + 1) % 4].y - pair.bodyA.parent.position.y,
                             },
-                            bodyA: pair.bodyA,
+                            bodyA: pair.bodyA.parent,
                             pointB: {
-                                x: pair.bodyB.vertices[midBIndex].x - pair.bodyB.position.x,
-                                y: pair.bodyB.vertices[midBIndex].y - pair.bodyB.position.y,
+                                x: pair.bodyB.vertices[midBIndex].x - pair.bodyB.parent.position.x,
+                                y: pair.bodyB.vertices[midBIndex].y - pair.bodyB.parent.position.y,
                             },
-                            bodyB: pair.bodyB
+                            bodyB: pair.bodyB.parent
                         })
                         var constraintC = Matter.Constraint.create({
                             stiffness: 1,
@@ -266,14 +269,14 @@
                                 x: 0,
                                 y: 0,
                             },
-                            bodyA: pair.bodyA,
+                            bodyA: char.c,
                             pointB: {
                                 x: 0,
                                 y: 0,
                             },
-                            bodyB: pair.bodyB
+                            bodyB: ligament
                         })
-                        world.add(phys.world, [constraintA, constraintB, constraintC])
+                        world.add(phys.world, [constraintA, constraintB])
                         for (var name in {
                                 bodyA: pair.bodyA,
                                 bodyB: pair.bodyB
@@ -286,7 +289,7 @@
                             });
                         }
                         setTimeout(function () {
-                            world.remove(phys.world, [ligament, constraintA, constraintB, constraintC]);
+                            world.remove(phys.world, [ligament, constraintA, constraintB]);
                             var clone = char.c.parts.slice(0);
                             clone.push(ligament)
                             Matter.Body.setParts(char.c, clone, false);
@@ -370,6 +373,17 @@
 
             var s = new stage();
 
+            /* render = Matter.Render.create({
+                 engine: phys,
+                 canvas:$('div#main canvas')[0],
+                 options:{
+                     width:innerWidth,
+                     height:innerHeight
+                 }
+             })*/
+            //Matter.Render.setPixelRatio(render, 3)
+            //Matter.Render.run(render);
+
             char = new chara({
                 x: 2000,
                 y: 3000
@@ -387,6 +401,7 @@
                 FrameCount = 0;
                 physFrameCount = 0;
                 LastPhysFps = physFrameCount * 2;
+                console.log(char)
             }, 500)
         };
     })
