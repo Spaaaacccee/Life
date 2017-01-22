@@ -1,12 +1,4 @@
 (function () {
-    (function () {
-        Matter.use('matter-attractors',
-            'matter-gravity')
-    })()
-    var engine = Matter.Engine,
-        render = Matter.Render,
-        world = Matter.World,
-        bodies = Matter.Bodies;
     var phys;
     var physFrameCount = 0;
     var FrameCount = 0;
@@ -94,8 +86,7 @@
         this.visual = rect(o);
 
         var box = bodies.rectangle(o.x, o.y, o.width, o.height);
-        Matter.Vertices.clockwiseSort(box.vertices);
-        Matter.Body.setAngle(box, o.rot)
+        //BOX2D SET BOX ANGLE
         box.frictionAir = 0.5
         box.friction = 0
         box.parentBlock = self;
@@ -164,16 +155,12 @@
         });
         world.remove(phys.world, [b.physics])
             //world.remove(phys.world,[b.physics])
-        var c = Matter.Body.create({
-            parts: [b.physics],
-            frictionAir: 0.5,
-            friction: 0
-        });
+        var c = //BOX2D CREATE COMPOSITE
         world.add(phys.world, [c])
         this.c = c;
         this.b = b;
         b.isSticky = true;
-        Matter.Body.setAngle(b.physics, 0)
+        //BOX 2D DUNNO WHAT THIS IS Matter.Body.setAngle(b.physics, 0)
         this.controller = new(function () {
             var mouseController = function () {
                 //Mouse controller
@@ -185,13 +172,7 @@
                 //var dist = p.dist(mousePos.x, mousePos.y, -cameraLocation.x + innerWidth / 2, -cameraLocation.y + innerHeight / 2);
                 var offsetX = (mousePos.x - self.location.x + cameraLocation.x - innerWidth / 2) * -1
                 var offsetY = (mousePos.y - self.location.y + cameraLocation.y - innerHeight / 2) * -1
-                Matter.Body.applyForce(self.c, {
-                    x: self.location.x + offsetX,
-                    y: self.location.y + offsetY
-                }, {
-                    x: -offsetX * 0.000005,
-                    y: -offsetY * 0.000005
-                });
+//BOX2D APPLY FORCE
                 self.location = self.c.position
             }
             execQueue.push(mouseController)
@@ -252,7 +233,6 @@
         };
         this.logic = function () {
             engine.update(phys, undefined, 60 / lastPhysFps);
-            Matter.Sleeping.update(phys.world.bodies)
             for (var i = 0; i < execQueue.length; i++) {
                 execQueue[i]();
             }
@@ -265,21 +245,7 @@
             p.rectMode(p.CENTER);
             ctx = c.children[0];
 
-            phys = engine.create();
-            phys.world.gravity.scale = 0;
-
             var s = new stage();
-
-            /* render = Matter.Render.create({
-                 engine: phys,
-                 canvas:$('div#main canvas')[0],
-                 options:{
-                     width:innerWidth,
-                     height:innerHeight
-                 }
-             })*/
-            //Matter.Render.setPixelRatio(render, 3)
-            //Matter.Render.run(render);
 
             char = new chara({
                 x: 2000,
