@@ -18,7 +18,6 @@
         x: 4000,
         y: 6000
     };
-    var render
 
     function randomIntFromInterval(min, max) {
         return Math.floor(Math.random() * (max - min + 1) + min);
@@ -34,7 +33,11 @@
         drawQueue.push(this);
     }
 
+    //Responsible for setting up the world
     var stage = function () {
+        var self = this;
+        this.gravity = new b2Vec2(0,0);
+        this.world = new b2World(self.gravity,true)
         this.visual = rect({
             x: stageSize.x / 2,
             y: stageSize.y / 2,
@@ -66,31 +69,18 @@
     //Block settings
     var blockSize = 20
 
-    var block = function (obj) {
+    var block = function (obj /*obj has properties IsCore, x, y, width, height, rot, options*/ ) {
         var self = this;
         this.isCore = obj.isCore
-        var o = obj;
-        o.width = blockSize;
-        o.height = blockSize;
-        o.rot = obj.rot || 0;
-        o.rot = obj.isCore ? char ? char.c.angle : o.rot : o.rot;
         this.updateLocation = function (obj) {
-            o.x = obj.x || o.x
-            o.y = obj.y || o.y
-            o.rot = obj.rot || o.rot
-            o.rot = self.isCore ? char ? char.c.angle : o.rot : o.rot;
-            o.options = obj.options || o.options
+            //BOX 2D Define o here
             self.visual.deleteFromDrawQueue();
-            self.visual = rect(o);
+            self.visual = rect(obj);
         }
         this.visual = rect(o);
 
-        var box = bodies.rectangle(o.x, o.y, o.width, o.height);
         //BOX2D SET BOX ANGLE
-        box.frictionAir = 0.5
-        box.friction = 0
-        box.parentBlock = self;
-        world.add(phys.world, [box]);
+
         execQueue.push(function () {
             self.updateLocation({
                 x: box.position.x,
@@ -156,7 +146,6 @@
         world.remove(phys.world, [b.physics])
             //world.remove(phys.world,[b.physics])
         var c = //BOX2D CREATE COMPOSITE
-        world.add(phys.world, [c])
         this.c = c;
         this.b = b;
         b.isSticky = true;
@@ -172,7 +161,7 @@
                 //var dist = p.dist(mousePos.x, mousePos.y, -cameraLocation.x + innerWidth / 2, -cameraLocation.y + innerHeight / 2);
                 var offsetX = (mousePos.x - self.location.x + cameraLocation.x - innerWidth / 2) * -1
                 var offsetY = (mousePos.y - self.location.y + cameraLocation.y - innerHeight / 2) * -1
-//BOX2D APPLY FORCE
+                    //BOX2D APPLY FORCE
                 self.location = self.c.position
             }
             execQueue.push(mouseController)
@@ -253,11 +242,13 @@
             });
             var f = new foodGenerator();
             var cam = new camera();
+            
+            //LOGIC LOOP
             setInterval(function () {
                 game.logic();
             }, 16.67)
 
-
+            //DEBUG INFO
             setInterval(function () {
                 $("#fps")[0].innerHTML = "FPS: " + FrameCount * 2;
                 $("#physFps")[0].innerHTML = "Physics IPS: " + physFrameCount * 2;
