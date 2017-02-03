@@ -37,8 +37,8 @@
     //Responsible for setting up the world
     var stage = function () {
         var self = this;
-        this.gravity = new b2.b2Vec2(0,0);
-        this.world = new b2.b2World(self.gravity,true)
+        this.gravity = new b2.b2Vec2(0, 0);
+        this.world = new b2.b2World(self.gravity, true)
         this.visual = rect({
             x: stageSize.x / 2,
             y: stageSize.y / 2,
@@ -147,7 +147,7 @@
         world.remove(phys.world, [b.physics])
             //world.remove(phys.world,[b.physics])
         var c = //BOX2D CREATE COMPOSITE
-        this.c = c;
+            this.c = c;
         this.b = b;
         b.isSticky = true;
         //BOX 2D DUNNO WHAT THIS IS Matter.Body.setAngle(b.physics, 0)
@@ -243,7 +243,7 @@
             });
             var f = new foodGenerator();
             var cam = new camera();
-            
+
             //LOGIC LOOP
             setInterval(function () {
                 game.logic();
