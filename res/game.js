@@ -13,6 +13,16 @@ new(function () {
         this.log = function (obj) {
             //console.log(obj);
         }
+        this.stats = new(function () {
+            var s = this;
+            this.update = function () {
+                $("#fps")[0].innerHTML = "FPS: " + root.currentGame.stage.renderer.frameCount;
+                root.currentGame.stage.renderer.frameCount = 0;
+                $("#physFps")[0].innerHTML = "Physics IPS: " + root.currentGame.stage.physics.frameCount;
+                root.currentGame.stage.physics.frameCount = 0;
+            }
+            setInterval(s.update, 1000)
+        })()
     })();
     this.utility = new(function () {
         this.randomIntFromInterval = function (min, max) {
@@ -75,9 +85,12 @@ new(function () {
                     });
                 }
             });
-            setInterval(function () {
+
+            function nextFrame() {
                 self.renderer.update(self.position);
-            }, 1000 / self.frameRate)
+                requestAnimationFrame(nextFrame)
+            }
+            requestAnimationFrame(nextFrame)
         };
         this.food = function (obj) {
             root.gameObject.block.call(this, obj);
@@ -109,16 +122,19 @@ new(function () {
                 var offsetY = self.gameObject.position.y + ((mousePos.y - (innerHeight / 2)) * -1)
                     //Apply Force
                 self.gameObject.physics.body.ApplyImpulse({
-                    x: ((mousePos.x - (innerWidth / 2)) * 5),
-                    y: ((mousePos.y - (innerHeight / 2)) * 5)
+                    x: ((mousePos.x - (innerWidth / 2)) * 0.5),
+                    y: ((mousePos.y - (innerHeight / 2)) * 0.5)
                 }, {
                     x: 0,
                     y: 0
                 })
             };
-            setInterval(function () {
+
+            function nextFrame() {
                 s.update();
-            }, 1 / self.frameRate)
+                requestAnimationFrame(nextFrame)
+            }
+            requestAnimationFrame(nextFrame)
         })()
     };
 
@@ -135,6 +151,11 @@ new(function () {
         var self = this;
         var isRunning = false;
         this.frameRate = (obj && obj.frameRate) ? obj.frameRate : 60;
+        this.frameCount = 0;
+        this.lastFrameTime = Date.now();
+        var delta = function () {
+            return (Date.now() - self.lastFrameTime) / (1000 / self.frameRate)
+        }
         var clock;
         var gravity = (obj && obj.gravity) ? obj.gravity : new root.physics.b2.m.b2Vec2(0, 0);
         this.world = new root.physics.b2.d.b2World(gravity, true)
@@ -145,7 +166,7 @@ new(function () {
             if (isRunning == false) {
                 clock = setInterval(function () {
                     self.step()
-                }, self.frameRate)
+                }, 1000 / self.frameRate)
                 isRunning = true;
                 root.debug.log("Physics simulation started.")
             }
@@ -158,8 +179,18 @@ new(function () {
             }
         };
         this.step = function () {
-            self.world.Step(1000 / self.frameRate);
+            if (isRunning) {
+                self.world.Step((1000 / self.frameRate) * delta());
+                self.lastFrameTime = Date.now();
+                self.frameCount++;
+            }
         };
+
+        /*function nextFrame() {
+            self.step();
+            requestAnimationFrame(nextFrame)
+        }
+        requestAnimationFrame(nextFrame)*/
         this.start();
     };
     /**
@@ -200,7 +231,8 @@ new(function () {
             var fixtureDef = new root.physics.b2.d.b2FixtureDef();
             this.shape.SetAsBox(obj.width, obj.height);
             fixtureDef.shape = this.shape;
-            fixtureDef.density = 1000;
+            fixtureDef.density = 10;
+            this.bd.linearDamping = 0.02;
             this.body = obj.world.CreateBody(this.bd);
             this.body.CreateFixture(obj.fixtureDef || fixtureDef);
             root.debug.log("Created New Rectangle");
@@ -216,6 +248,7 @@ new(function () {
                 this.pixiStage = new root.renderer.pi.Container();
                 $("#c")[0].appendChild(this.pixiRenderer.view);
                 this.pixiRenderer.render(this.pixiStage)
+                this.frameCount = 0;
                 root.renderer.create = new(function () {
                     /**
                      * Create a generic renderObject
@@ -251,9 +284,13 @@ new(function () {
                         }
                     }
                 })()
-                setInterval(function () {
+
+                function nextFrame() {
                     self.pixiRenderer.render(self.pixiStage)
-                }, 1000 / self.frameRate)
+                    self.frameCount++;
+                    requestAnimationFrame(nextFrame)
+                }
+                requestAnimationFrame(nextFrame)
             }
         }
         /**
@@ -333,7 +370,7 @@ new(function () {
             target: this.character
         });
         this.logic = new root.logic();
-        //this.clock
+
     };
     this.init = (function () {
         new root.game();
