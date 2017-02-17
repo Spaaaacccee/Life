@@ -10,6 +10,11 @@ div#c {
     color: white;
     font-weight: 300
 }
+
+div#main {
+    display:block
+}
+
 div#debugInfo {
     position: absolute;
     top: 0;
