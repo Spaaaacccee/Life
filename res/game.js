@@ -1,429 +1,411 @@
-(function () {
-    (function () {
-        Matter.use('matter-attractors',
-            'matter-gravity')
-    })()
-    var engine = Matter.Engine,
-        render = Matter.Render,
-        world = Matter.World,
-        bodies = Matter.Bodies;
-    var phys;
-    var physFrameCount = 0;
-    var FrameCount = 0;
-    var lastPhysFps = 60;
-
-    var c = $("#c")[0] || $("#c"); //canvas
-    var ctx;
-    var p;
-    var drawQueue = [];
-    var execQueue = [];
-    var cameraLocation = {
-        x: 2000,
-        y: 3000
-    };
-    var char;
-    var stageSize = {
-        x: 4000,
-        y: 6000
-    };
-
-    function randomIntFromInterval(min, max) {
-        return Math.floor(Math.random() * (max - min + 1) + min);
-    }
-
-    var timer = function () {}
-
-
-    var drawQueueObject = function (type, args) {
-        this.type = type;
-        this.args = args;
-        this.options = {};
-        drawQueue.push(this);
-    }
-
-    var stage = function () {
-        this.visual = rect({
-            x: stageSize.x / 2,
-            y: stageSize.y / 2,
-            width: stageSize.x,
-            height: stageSize.y,
-            options: {
-                fill: [20]
-            }
-        });
-    }
-
-
-    var rect = function (obj) {
-        var d = new drawQueueObject("rect", [obj.x, obj.y, obj.width, obj.height]);
-        d.options = obj.options || {
-            fill: [Math.max(20, 255 - (p.dist(obj.x, obj.y, char.location.x, char.location.y) * 0.3))],
-            noStroke: [true],
-        };
-        d.obj = obj;
-        d.deleteFromDrawQueue = function () {
-            var index = drawQueue.indexOf(d);
-            if (index > -1) {
-                drawQueue.splice(index, 1);
-            }
+new(function () {
+    var root = this;
+    //"use strict";
+    this.currentGame;
+    /**
+     * Contains methods for use in debugging.
+     */
+    this.debug = new(function () {
+        /**
+         * Outputs a message to the console
+         * @param {string|object} obj Object to display in the console.
+         */
+        this.log = function (obj) {
+            //console.log(obj);
         }
-        return d;
-    }
-
-    //Block settings
-    var blockSize = 20
-
-    var block = function (obj) {
-        var self = this;
-        var o = obj;
-        o.width = blockSize;
-        o.height = blockSize;
-        o.x = obj.x
-        o.y = obj.y;
-        o.rot = obj.rot || 0;
-        this.updateLocation = function (obj) {
-            o.x = obj.x || o.x
-            o.y = obj.y || o.y
-            o.rot = obj.rot || o.rot
-            o.options = obj.options || o.options
-            self.visual.deleteFromDrawQueue();
-            self.visual = rect(o);
+        this.stats = new(function () {
+            var s = this;
+            this.update = function () {
+                $("#fps")[0].innerHTML = "FPS: " + root.currentGame.stage.renderer.frameCount;
+                root.currentGame.stage.renderer.frameCount = 0;
+                $("#physFps")[0].innerHTML = "Physics IPS: " + root.currentGame.stage.physics.frameCount;
+                root.currentGame.stage.physics.frameCount = 0;
+            }
+            setInterval(s.update, 1000)
+        })()
+    })();
+    this.utility = new(function () {
+        this.randomIntFromInterval = function (min, max) {
+            return Math.floor(Math.random() * (max - min + 1) + min);
         }
-        this.visual = rect(o);
-
-        var box = bodies.rectangle(o.x, o.y, o.width, o.height);
-        Matter.Vertices.clockwiseSort(box.vertices);
-        Matter.Body.setAngle(box, o.rot)
-        box.frictionAir = 0.1
-        box.friction = 0
-        box.parentBlock = self;
-        world.add(phys.world, [box]);
-        execQueue.push(function () {
-            self.updateLocation({
-                x: box.position.x,
-                y: box.position.y,
-                rot: box.angle,
-                options: box.options || o.options
+        this.mouse = new(function () {
+            var s = this;
+            this.x = innerWidth / 2;
+            this.y = innerHeight / 2;
+            $(document).mousemove(function (e) {
+                s.x = e.pageX;
+                s.y = e.pageY;
             })
-        })
-        this.physics = box;
-        this.o = o; //original object that provided info
-    }
-
-    var food = function () {
-        var b = new block({
-            x: randomIntFromInterval(0, stageSize.x),
-            y: randomIntFromInterval(0, stageSize.y),
-            rot: randomIntFromInterval(0, 200) / 100
-        });
-        b.isFood = true;
-        b.physics.mass = 0.01;
-        b.physics.frictionAir = 0.0004;
-        return b;
-    }
-
-    //Food Generator Settings
-
-    var foodAmount = 600
-
-    var foodGenerator = function () {
-        for (var i = 0; i < foodAmount; i++) {
-            var f = new food();
-        }
-    }
-
-    var chunck = function (obj) {
-        this.core = new block({
-            x: obj.x,
-            y: obj.y,
-            options: {
-                fill: ["#1ABC9C"],
-            }
-        });
-        this.composite = Matter.Composite.create();
-        Matter.Composite.add(this.composite, this.core.physics);
-        //WIP
-    }
-
-    var chara = function (obj) {
-        var self = this;
-        this.location = {
-            x: cameraLocation.x,
-            y: cameraLocation.y
-        }
-        var b = new block({
-            x: obj.x,
-            y: obj.y,
-            options: {
-                fill: ["#1ABC9C"],
-            }
-        });
-        this.b = b;
-        b.isSticky = true;
-        Matter.Body.setAngle(b.physics, 0)
-        this.controller = new(function () {
-            var mouseController = function () {
-                //Mouse controller
-                var mousePos = {
-                    x: p.mouseX,
-                    y: p.mouseY
-                }
-
-                //var dist = p.dist(mousePos.x, mousePos.y, -cameraLocation.x + innerWidth / 2, -cameraLocation.y + innerHeight / 2);
-                var offsetX = (mousePos.x - self.location.x + cameraLocation.x - innerWidth / 2) * -1
-                var offsetY = (mousePos.y - self.location.y + cameraLocation.y - innerHeight / 2) * -1
-                Matter.Body.applyForce(self.b.physics, {
-                    x: self.location.x + offsetX,
-                    y: self.location.y + offsetY
-                }, {
-                    x: -offsetX * 0.000005,
-                    y: -offsetY * 0.000005
-                });
-                self.location = self.b.physics.position
-            }
-            execQueue.push(mouseController)
         })()
-        Matter.Events.on(phys, 'collisionStart', function (e) {
-            function raycast(bodies, start, r, dist) {
-                var normRay = Matter.Vector.normalise(r);
-                var ray = normRay;
-                var point = Matter.Vector.add(ray, start);
-                for (var i = 0; i < dist; i++) {
-                    ray = Matter.Vector.mult(normRay, i);
-                    ray = Matter.Vector.add(start, ray);
-                    var bod = Matter.Query.point(bodies, ray)[0];
-                    if (bod) {
-                        return {
-                            point: ray,
-                            body: bod
-                        };
-                    }
+        this.toRadians = function (degree) {
+            return degree * (Math.PI / 180)
+        }
+        this.toDegrees = function (radian) {
+            return radian * (180 / Math.PI)
+        }
+    })();
+    /**
+     * Contains methods for creating and manipulating gameObjects.
+     */
+    this.gameObject = new(function () {
+        /**
+         * Creates a new generic element
+         * @param {object} obj Options
+         * @returns {genericObject} An empty gameObject
+         */
+        this.genericObject = function (obj) {};
+        /**
+         * Creates a new block element
+         * @param {object}  obj           Options
+         * @param {int}     obj.blockSize (Optional) Define the size of the block
+         * @param {Vector2} obj.position    position of new object
+         * @returns {block}   A block gameObject
+         */
+        this.block = function (obj) {
+            var self = this;
+            this.clock;
+            this.frameRate = (obj && obj.frameRate) ? obj.frameRate : 60;
+            root.gameObject.genericObject.call(this, obj);
+            this.blockSize = (obj && obj.blockSize) ? obj.blockSize : 50;
+            this.color = (obj && obj.color) ? obj.color : undefined
+            var def = {
+                width: this.blockSize / 2,
+                height: this.blockSize / 2,
+                world: root.currentGame.stage.physics.world,
+                color: this.color,
+                position: obj.position
+            }
+            for (var i = 0, components = ['physics', 'renderer']; i < components.length; i++) {
+                this[components[i]] = new root[components[i]].create.rectangle(def)
+                this[components[i]].gameObject = this;
+            }
+            Object.defineProperty(this, "position", {
+                get: function () {
+                    return {
+                        x: self.physics.body.GetPosition().x * 9,
+                        y: self.physics.body.GetPosition().y * 9
+                    };
+                },
+                set: function (vector) {
+                    self.physics.body.SetPosition({
+                        x: vector.x / 9,
+                        y: vector.y / 9
+                    });
                 }
-                return;
-            }
-            var pairs = e.pairs;
-            for (var i = 0; i < pairs.length; i++) {
-                var pair = pairs[i];
-                if ((pair.bodyA.parentBlock.isSticky || pair.bodyB.parentBlock.isSticky) && !(pair.bodyA.parentBlock.isSticky && pair.bodyB.parentBlock.isSticky)) {
-                    Matter.Vertices.clockwiseSort(pair.bodyA.vertices);
-                    Matter.Vertices.clockwiseSort(pair.bodyB.vertices);
-                    var midPointsA = [];
-                    var midPointsB = [];
-                    var smallestDist = Infinity;
-                    var midAIndex;
-                    var midBIndex;
-                    for (var i = 0; i < pair.bodyA.vertices.length; i++) {
-                        var A = pair.bodyA.vertices;
-                        var B = pair.bodyB.vertices;
-                        midPointsA.push(Matter.Vertices.mean([A[i % A.length], A[(i + 1) % A.length]]))
-                        midPointsB.push(Matter.Vertices.mean([B[i % B.length], B[(i + 1) % B.length]]))
-                    }
-                    for (var i = 0; i < midPointsA.length; i++) {
-                        for (var j = 0; j < midPointsB.length; j++) {
-                            var d = p.dist(midPointsA[i].x, midPointsA[i].y, midPointsB[j].x, midPointsB[j].y)
-                            if (d < smallestDist) {
-                                smallestDist = d;
-                                midAIndex = i;
-                                midBIndex = j;
-
-                            }
-                        }
-                    }
-                    console.log(smallestDist)
-
-                    function indexToPosition(index, rotation) {
-                        var a;
-                        switch (index) {
-                            case 0:
-                                a = {
-                                    x: -10,
-                                    y: -10
-                                }
-                                break;
-                            case 1:
-                                a = {
-                                    x: 10,
-                                    y: -10
-                                }
-                                break;
-                            case 2:
-                                a = {
-                                    x: 10,
-                                    y: 10
-                                }
-                                break;
-                            case 3:
-                                a = {
-                                    x: -10,
-                                    y: 10
-                                }
-                                break;
-                        }
-                        Matter.Vertices.rotate([a], rotation, {
-                            x: 0,
-                            y: 0
-                        })
-                        return a
-                    }
-
-
-                    var constraintA = Matter.Constraint.create({
-                        stiffness: 1,
-                        length: 0.001,
-                        pointA: {
-                            x: pair.bodyA.vertices[midAIndex].x - pair.bodyA.position.x,
-                            y: pair.bodyA.vertices[midAIndex].y - pair.bodyA.position.y,
-                        },
-                        bodyA: pair.bodyA,
-                        pointB: {
-                            x: pair.bodyB.vertices[(midBIndex+1)%4].x - pair.bodyB.position.x,
-                            y: pair.bodyB.vertices[(midBIndex+1)%4].y - pair.bodyB.position.y,
-                        },
-                        bodyB: pair.bodyB
-                    })
-                    var constraintB = Matter.Constraint.create({
-                        stiffness: 1,
-                        length: 0.001,
-                        pointA: {
-                            x: pair.bodyA.vertices[(midAIndex+1)%4].x - pair.bodyA.position.x,
-                            y: pair.bodyA.vertices[(midAIndex+1)%4].y - pair.bodyA.position.y,
-                        },
-                        bodyA: pair.bodyA,
-                        pointB: {
-                            x: pair.bodyB.vertices[midBIndex].x - pair.bodyB.position.x,
-                            y: pair.bodyB.vertices[midBIndex].y - pair.bodyB.position.y,
-                        },
-                        bodyB: pair.bodyB
-                    })
-                    world.add(phys.world, [constraintA, constraintB])
-
-                    /*                    var hit = raycast(phys.world.bodies,core.position,bl.position,p.dist(core.position.x,core.position.y,bl.position.x,bl.position.y))
-                                        console.log(hit);
-                                        var constraint = Matter.Constraint.create({
-                                            stiffness: 1,
-                                            length: blockSize,
-                                            pointA: {
-                                                x: 0,
-                                                y: 0
-                                            },
-                                            bodyA: pair.bodyA,
-                                            pointB: {
-                                                x: 0,
-                                                y: 0
-                                            },
-                                            bodyB: pair.bodyB
-                                        })
-                                        world.add(phys.world, [constraint])*/
-                    for (var name in {
-                            bodyA: pair.bodyA,
-                            bodyB: pair.bodyB
-                        }) {
-                        pair[name].parentBlock.isSticky = true;
-                        pair[name].parentBlock.updateLocation({
-                            options: {
-                                fill: ["#1ABC9C"]
-                            }
-                        });
-                    }
-
-                }
-            }
-        })
-    }
-
-    var camera = function () {
-        this.controller = new(function () {
-            var movementController = function () {
-                cameraLocation.x = (Math.min(stageSize.x - innerWidth / 2, Math.max(innerWidth / 2, char.location.x)))
-                cameraLocation.y = (Math.min(stageSize.y - innerHeight / 2, Math.max(innerHeight / 2, char.location.y)))
-            }
-            execQueue.push(movementController);
-        })()
-    }
-
-    var game = new(function () {
-        this.init = function () {
-            var sketchProcedure = function (p) {
-                p.setup = function () {
-                    game.setup()
-                };
-                p.draw = function () {
-                    game.draw()
-                };
-            };
-            p = new p5(sketchProcedure, c);
-
-        };
-        this.draw = function () {
-
-            for (var i = 0; i < drawQueue.length; i++) {
-                p.push()
-                    //Apply Settings
-                for (var name in drawQueue[i].options) {
-                    p[name].apply(p, (drawQueue[i].options[name]))
-                }
-                //x,y,w,h
-                drawQueue[i].args[0]
-                var tX = drawQueue[i].obj.x - cameraLocation.x + innerWidth / 2;
-                var tY = drawQueue[i].obj.y - cameraLocation.y + innerHeight / 2;
-                //rect 1 = screen
-                var overlap = !(innerWidth < tX - drawQueue[i].obj.width / 2 ||
-                    0 > tX + drawQueue[i].obj.width / 2 ||
-                    innerHeight < tY - drawQueue[i].obj.height / 2 ||
-                    0 > tY + drawQueue[i].obj.height / 2)
-                if (overlap) {
-                    p.translate(tX, tY)
-                    p.rotate(drawQueue[i].obj.rot)
-                    p[drawQueue[i].type](0, 0, drawQueue[i].obj.width, drawQueue[i].obj.height)
-                    //p.rect(0, -10, 5, 5)
-                    p.pop()
-                }
-
-            }
-            FrameCount++
-
-        };
-        this.logic = function () {
-            engine.update(phys, undefined, 60 / lastPhysFps);
-            Matter.Sleeping.update(phys.world.bodies)
-            for (var i = 0; i < execQueue.length; i++) {
-                execQueue[i]();
-            }
-            physFrameCount++;
-        };
-        this.setup = function () {
-            p.createCanvas(window.innerWidth, window.innerHeight);
-            p.background(42);
-            p.frameRate(120);
-            p.rectMode(p.CENTER);
-            ctx = c.children[0];
-
-            phys = engine.create();
-            phys.world.gravity.scale = 0;
-
-            var s = new stage();
-
-            char = new chara({
-                x: 2000,
-                y: 3000
             });
-            var f = new foodGenerator();
-            var cam = new camera();
-            setInterval(function () {
-                game.logic();
-            }, 16.67)
 
+            Object.defineProperty(this, "rotation", {
+                get: function () {
+                    return self.physics.body.GetAngle(); //In degrees
+                },
+                set: function (degrees) {
+                    self.physics.body.SetAngle(degrees);
+                }
+            });
 
-            setInterval(function () {
-                $("#fps")[0].innerHTML = "FPS: " + FrameCount * 2;
-                $("#physFps")[0].innerHTML = "Physics IPS: " + physFrameCount * 2;
-                FrameCount = 0;
-                physFrameCount = 0;
-                LastPhysFps = physFrameCount * 2;
-            }, 500)
+            function nextFrame() {
+                self.renderer.update({
+                    x: self.position.x,
+                    y: self.position.y,
+                    rotation: root.utility.toRadians(self.rotation)
+                });
+                requestAnimationFrame(nextFrame)
+            }
+            requestAnimationFrame(nextFrame)
+                //this.physics.body.ApplyTorque(200)
         };
-    })
+        this.food = function (obj) {
+            obj = obj || {}
+            obj.position = obj.position ? obj.position : {
+                x: root.utility.randomIntFromInterval(0, root.currentGame.stage.size.x),
+                y: root.utility.randomIntFromInterval(0, root.currentGame.stage.size.y),
+            }
+            root.gameObject.block.call(this, obj);
+            this.isFood = true;
+
+            //b.physics.mass = 0.01;
+            //b.physics.frictionAir = 0.0004;
+        }
+    })();
+    this.character = function (obj) {
+        var self = this;
+        this.gameObject = new root.gameObject.block({
+            color: '0x1ABC9C',
+            position: ((obj && obj.position) ? obj.position : root.currentGame.stage.size)
+        });
+        this.controller = new(function () {
+            var s = this;
+            //Mouse controller
+            this.update = function () {
+                var mousePos = {
+                        x: root.utility.mouse.x,
+                        y: root.utility.mouse.y
+                    }
+                    //var dist = p.dist(mousePos.x, mousePos.y, -cameraLocation.x + innerWidth / 2, -cameraLocation.y + innerHeight / 2);
+                    //Apply Force
+                self.gameObject.physics.body.ApplyImpulse({
+                        x: ((mousePos.x - (innerWidth / 2)) * 0.5),
+                        y: ((mousePos.y - (innerHeight / 2)) * 0.5)
+                    }, {
+                        x: 20,
+                        y: 20
+                    })
+                    //console.log(self.gameObject.physics.body.rotation)
+            };
+
+            function nextFrame() {
+                s.update();
+                requestAnimationFrame(nextFrame)
+            }
+            requestAnimationFrame(nextFrame)
+        })()
+    };
 
 
-    game.init();
+    /**
+     * Create a new physics instance
+     * @type {physics}
+     * @param {object}  obj         Options
+     * @param {b2Vec2}  obj.gravity (Optional) Sets the gravity of the world
+     * @param {int}     frameRate   (Optional) Sets a custom frameRate, default 60
+     * @return {physics} A new physics instance
+     */
+    this.physics = function (obj) {
+        var self = this;
+        var isRunning = false;
+        this.frameRate = (obj && obj.frameRate) ? obj.frameRate : 60;
+        this.frameCount = 0;
+        this.lastFrameTime = Date.now();
+        var delta = function () {
+            return (Date.now() - self.lastFrameTime) / (1000 / self.frameRate)
+        }
+        var clock;
+        var gravity = (obj && obj.gravity) ? obj.gravity : new root.physics.b2.m.b2Vec2(0, 0);
+        this.world = new root.physics.b2.d.b2World(gravity, true);
+        this.debugDaw = this.world.SetDebugDraw(new Box2D.Dynamics.b2DebugDraw())
+            /**
+             * Starts the physics simulation
+             */
+        this.start = function () {
+            if (isRunning == false) {
+                clock = setInterval(function () {
+                    self.step()
+                }, 1000 / self.frameRate)
+                isRunning = true;
+                root.debug.log("Physics simulation started.")
+            }
+        };
+        this.stop = function () {
+            if (isRunning == true) {
+                clearInterval(clock);
+                isRunning = false;
+                root.debug.log("Physics simulation stopped.")
+            }
+        };
+        this.step = function () {
+            if (isRunning) {
+                self.world.Step((1000 / self.frameRate) * delta());
+                self.lastFrameTime = Date.now();
+                self.frameCount++;
+            }
+        };
+
+        /*function nextFrame() {
+            self.step();
+            requestAnimationFrame(nextFrame)
+        }
+        requestAnimationFrame(nextFrame)*/
+        this.start();
+    };
+    /**
+     * Create a new physics object.
+     */
+    root.physics.b2 = {
+        d: Box2D.Dynamics,
+        c: Box2D.Collision,
+        m: Box2D.Common.Math,
+        s: Box2D.Collision.Shapes,
+    };
+    root.physics.dFd = new root.physics.b2.d.b2FixtureDef();
+    root.physics.create = new(function (obj) {
+        var self = this;
+        this.scale = (obj && obj.scale) ? obj.scale : 9;
+        /**
+         * Create a generic physicsObject
+         * @param {object}    obj           Options
+         * @param {b2world}   obj.world     The world context to create the new object
+         * @param {b2Vec2} obj.position position of new object
+         * @return {physicsObject} A new physics object
+         */
+        this.physicsObject = function (obj) {
+            this.bd = new root.physics.b2.d.b2BodyDef();
+            this.bd.type = root.physics.b2.d.b2Body.b2_dynamicBody;
+            this.shape = new root.physics.b2.s.b2PolygonShape();
+            this.bd.position.Set(obj.position.x / self.scale, obj.position.y / self.scale)
+        };
+        /**
+         * Create a rectangle
+         * @extends physicsObject
+         * @param {object} obj Options
+         * @param {b2world} obj.world The world context to create the new object
+         * @param {number} obj.width Set the width of the rectangle
+         * @param {number} obj.height Set the height of the rectangle
+         * @param {b2Vec2} obj.position position of new object
+         * @return {rectangle}
+         */
+        this.rectangle = function (obj) {
+            self.physicsObject.call(this, obj);
+
+            var fixtureDef = new root.physics.b2.d.b2FixtureDef();
+            this.shape.SetAsBox(obj.width, obj.height);
+            fixtureDef.shape = this.shape;
+            fixtureDef.density = 10;
+            this.bd.linearDamping = 0.02;
+            this.bd.angularDamping = 0.02
+            this.body = obj.world.CreateBody(this.bd);
+            this.body.CreateFixture(obj.fixtureDef || fixtureDef);
+            root.debug.log("Created New Rectangle");
+            root.debug.log(this.body);
+
+        }
+    })();
+    this.renderers = {
+            pixi: function (obj) {
+                var self = this;
+                this.pixiRenderer = new root.renderer.pi.WebGLRenderer(innerWidth, innerHeight, {
+                    antialias: true
+                });
+                this.pixiStage = new root.renderer.pi.Container();
+                $("#c")[0].appendChild(this.pixiRenderer.view);
+                this.pixiRenderer.render(this.pixiStage)
+                this.frameCount = 0;
+                root.renderer.create = new(function () {
+                    /**
+                     * Create a generic renderObject
+                     * @param {object} obj Options
+                     * @return {renderObject} A new render object
+                     */
+                    this.renderObject = function (obj) {
+                        this.graphic = new root.renderer.pi.Graphics();
+                    };
+                    /**
+                     * Create a rectangle
+                     * @extends renderObject
+                     * @param {object} obj Options
+                     * @param {number} obj.width Set the width of the rectangle
+                     * @param {number} obj.height Set the height of the rectangle
+                     * @return {rectangleMesh}
+                     */
+                    this.rectangle = function (obj) {
+                        var s = this;
+                        root.renderer.create.renderObject.call(this, obj);
+                        obj.width = 20;
+                        obj.height = 20;
+                        this.fill = obj.color || '0xAAAAAA';
+                        this.graphic.pivot.set(obj.width / 2, obj.height / 2);
+                        this.graphic.beginFill(this.fill, 1);
+                        this.graphic.drawRect(root.renderer.worldToScreenspace(obj).x, root.renderer.worldToScreenspace(obj).y, obj.width, obj.height);
+                        this.graphic.endFill();
+                        self.pixiStage.addChild(this.graphic);
+                        this.update = function (obj) {
+                            s.graphic.x = root.renderer.worldToScreenspace(obj).x || s.graphic.x;
+                            s.graphic.y = root.renderer.worldToScreenspace(obj).y || s.graphic.y;
+                            s.graphic.rotation = obj.rotation || s.graphic.rotation;
+                            //setInterval(function () {
+                            //root.debug.log("Drew Rectangle at " + s.graphic.x)
+                            //}, 1000)
+                        }
+                    }
+                })()
+
+                function nextFrame() {
+                    self.pixiRenderer.render(self.pixiStage)
+                    self.frameCount++;
+                    requestAnimationFrame(nextFrame)
+                }
+                requestAnimationFrame(nextFrame)
+            }
+        }
+        /**
+         * Create a new renderer instance
+         * @param {string} obj.renderer (Optional) Sets the renderer used
+         * @return {renderer} A new renderer instance
+         */
+    this.renderer = function (obj) {
+        var self = this;
+        obj = obj || {};
+        obj.renderer = (obj && obj.renderer) ? obj.renderer : "pixi";
+        root.renderers[obj.renderer].call(this, obj);
+    };
+    root.renderer.pi = PIXI;
+    root.renderer.worldToScreenspace = function (obj) {
+        var screenSpaceX = obj.x - root.currentGame.camera.location.x + innerWidth / 2;
+        var screenSpaceY = obj.y - root.currentGame.camera.location.y + innerHeight / 2;
+        return {
+            x: screenSpaceX,
+            y: screenSpaceY
+        }
+    }
+    this.logic = function (obj) {
+        this.foodAmount = (obj && obj.foodAmount) ? obj.foodAmount : 400;
+        for (var i = 0; i < this.foodAmount; i++) {
+            var f = new root.gameObject.food();
+        }
+    };
+    this.camera = function (obj) {
+        var self = this;
+        this.target = null;
+        this.location = root.currentGame.stage.center;
+        /**
+         * Make the camera follow the selected target.
+         * @param {object}     obj        Options
+         * @param {gameObject} obj.target Target to follow
+         */
+        this.follow = function (obj) {
+            var s = this;
+            this.target = obj ? (obj.target || undefined) : false;
+            Object.defineProperty(this, "location", {
+                get: function () {
+                    return s.target.gameObject.position;
+                }
+            })
+        };
+        (this.target) ? (function () {
+            self.follow(this.target)
+        })() : false
+    };
+    /**
+     * Create a new stage instance
+     * @type {stage}
+     * @param {object} obj Options
+     * @param {b2Vec2} obj.size Sets the size of the world
+     * @return {stage} A new stage instance
+     */
+    this.stage = function (obj) {
+        this.size = (obj && obj.size) ? obj.size : {
+            x: 6000,
+            y: 4000
+        };
+        this.center = {
+            x: this.size.x / 2,
+            y: this.size.y / 2
+        }
+        this.renderer = new root.renderer();
+        this.physics = new root.physics();
+        this.add = function (gameObject) {};
+    };
+    this.game = function () {
+        root.currentGame = this;
+        this.stage = new root.stage();
+        this.camera = new root.camera();
+        this.character = new root.character();
+        this.camera.follow({
+            target: this.character
+        });
+        this.logic = new root.logic();
+
+    };
+    this.init = (function () {
+        new root.game();
+    })()
 })()
