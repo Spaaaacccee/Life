@@ -37,6 +37,12 @@ new(function () {
                 s.y = e.pageY;
             })
         })()
+        this.toRadians = function (degree) {
+            return degree * (Math.PI / 180)
+        }
+        this.toDegrees = function (radian) {
+            return radian * (180 / Math.PI)
+        }
     })();
     /**
      * Contains methods for creating and manipulating gameObjects.
@@ -86,21 +92,36 @@ new(function () {
                 }
             });
 
+            Object.defineProperty(this, "rotation", {
+                get: function () {
+                    return self.physics.body.GetAngle(); //In degrees
+                },
+                set: function (degrees) {
+                    self.physics.body.SetAngle(degrees);
+                }
+            });
+
             function nextFrame() {
-                self.renderer.update(self.position);
+                self.renderer.update({
+                    x: self.position.x,
+                    y: self.position.y,
+                    rotation: root.utility.toRadians(self.rotation)
+                });
                 requestAnimationFrame(nextFrame)
             }
             requestAnimationFrame(nextFrame)
+            this.physics.body.ApplyTorque(200)
         };
         this.food = function (obj) {
             root.gameObject.block.call(this, obj);
             this.isFood = true;
             this.position = {
-                    x: root.utility.randomIntFromInterval(0, root.currentGame.stage.size.x),
-                    y: root.utility.randomIntFromInterval(0, root.currentGame.stage.size.y),
-                }
-                //b.physics.mass = 0.01;
-                //b.physics.frictionAir = 0.0004;
+                x: root.utility.randomIntFromInterval(0, root.currentGame.stage.size.x),
+                y: root.utility.randomIntFromInterval(0, root.currentGame.stage.size.y),
+            }
+
+            //b.physics.mass = 0.01;
+            //b.physics.frictionAir = 0.0004;
         }
     })();
     this.character = function (obj) {
@@ -118,16 +139,15 @@ new(function () {
                         y: root.utility.mouse.y
                     }
                     //var dist = p.dist(mousePos.x, mousePos.y, -cameraLocation.x + innerWidth / 2, -cameraLocation.y + innerHeight / 2);
-                var offsetX = self.gameObject.position.x + ((mousePos.x - (innerWidth / 2)) * -1)
-                var offsetY = self.gameObject.position.y + ((mousePos.y - (innerHeight / 2)) * -1)
                     //Apply Force
                 self.gameObject.physics.body.ApplyImpulse({
-                    x: ((mousePos.x - (innerWidth / 2)) * 0.5),
-                    y: ((mousePos.y - (innerHeight / 2)) * 0.5)
-                }, {
-                    x: 0,
-                    y: 0
-                })
+                        x: ((mousePos.x - (innerWidth / 2)) * 0.5),
+                        y: ((mousePos.y - (innerHeight / 2)) * 0.5)
+                    }, {
+                        x: 20,
+                        y: 20
+                    })
+                    //console.log(self.gameObject.physics.body.rotation)
             };
 
             function nextFrame() {
@@ -158,7 +178,8 @@ new(function () {
         }
         var clock;
         var gravity = (obj && obj.gravity) ? obj.gravity : new root.physics.b2.m.b2Vec2(0, 0);
-        this.world = new root.physics.b2.d.b2World(gravity, true)
+        this.world = new root.physics.b2.d.b2World(gravity, true);
+        this.debugDaw = this.world.SetDebugDraw(new Box2D.Dynamics.b2DebugDraw())
             /**
              * Starts the physics simulation
              */
@@ -233,10 +254,12 @@ new(function () {
             fixtureDef.shape = this.shape;
             fixtureDef.density = 10;
             this.bd.linearDamping = 0.02;
+            this.bd.angularDamping = 0.02
             this.body = obj.world.CreateBody(this.bd);
             this.body.CreateFixture(obj.fixtureDef || fixtureDef);
             root.debug.log("Created New Rectangle");
             root.debug.log(this.body);
+
         }
     })();
     this.renderers = {
@@ -278,6 +301,7 @@ new(function () {
                         this.update = function (obj) {
                             s.graphic.x = root.renderer.worldToScreenspace(obj).x || s.graphic.x;
                             s.graphic.y = root.renderer.worldToScreenspace(obj).y || s.graphic.y;
+                            s.graphic.rotation = obj.rotation || s.graphic.rotation;
                             //setInterval(function () {
                             //root.debug.log("Drew Rectangle at " + s.graphic.x)
                             //}, 1000)
