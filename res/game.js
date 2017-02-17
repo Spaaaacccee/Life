@@ -56,22 +56,24 @@ new(function () {
         this.genericObject = function (obj) {};
         /**
          * Creates a new block element
-         * @param {object} obj Options
-         * @param {int} obj.blockSize (Optional) Define the size of the block
-         * @returns {block} A block gameObject
+         * @param {object}  obj           Options
+         * @param {int}     obj.blockSize (Optional) Define the size of the block
+         * @param {Vector2} obj.position    position of new object
+         * @returns {block}   A block gameObject
          */
         this.block = function (obj) {
             var self = this;
             this.clock;
             this.frameRate = (obj && obj.frameRate) ? obj.frameRate : 60;
             root.gameObject.genericObject.call(this, obj);
-            this.blockSize = (obj && obj.blockSize) ? obj.blockSize : 40;
+            this.blockSize = (obj && obj.blockSize) ? obj.blockSize : 50;
             this.color = (obj && obj.color) ? obj.color : undefined
             var def = {
                 width: this.blockSize / 2,
                 height: this.blockSize / 2,
                 world: root.currentGame.stage.physics.world,
-                color: this.color
+                color: this.color,
+                position: obj.position
             }
             for (var i = 0, components = ['physics', 'renderer']; i < components.length; i++) {
                 this[components[i]] = new root[components[i]].create.rectangle(def)
@@ -110,15 +112,16 @@ new(function () {
                 requestAnimationFrame(nextFrame)
             }
             requestAnimationFrame(nextFrame)
-            this.physics.body.ApplyTorque(200)
+                //this.physics.body.ApplyTorque(200)
         };
         this.food = function (obj) {
-            root.gameObject.block.call(this, obj);
-            this.isFood = true;
-            this.position = {
+            obj = obj || {}
+            obj.position = obj.position ? obj.position : {
                 x: root.utility.randomIntFromInterval(0, root.currentGame.stage.size.x),
                 y: root.utility.randomIntFromInterval(0, root.currentGame.stage.size.y),
             }
+            root.gameObject.block.call(this, obj);
+            this.isFood = true;
 
             //b.physics.mass = 0.01;
             //b.physics.frictionAir = 0.0004;
@@ -127,9 +130,9 @@ new(function () {
     this.character = function (obj) {
         var self = this;
         this.gameObject = new root.gameObject.block({
-            color: '0x1ABC9C'
+            color: '0x1ABC9C',
+            position: ((obj && obj.position) ? obj.position : root.currentGame.stage.size)
         });
-        this.gameObject.position = (obj && obj.position) ? obj.position : root.currentGame.stage.size;
         this.controller = new(function () {
             var s = this;
             //Mouse controller
@@ -231,12 +234,14 @@ new(function () {
          * Create a generic physicsObject
          * @param {object}    obj           Options
          * @param {b2world}   obj.world     The world context to create the new object
+         * @param {b2Vec2} obj.position position of new object
          * @return {physicsObject} A new physics object
          */
         this.physicsObject = function (obj) {
             this.bd = new root.physics.b2.d.b2BodyDef();
             this.bd.type = root.physics.b2.d.b2Body.b2_dynamicBody;
             this.shape = new root.physics.b2.s.b2PolygonShape();
+            this.bd.position.Set(obj.position.x / self.scale, obj.position.y / self.scale)
         };
         /**
          * Create a rectangle
@@ -245,10 +250,12 @@ new(function () {
          * @param {b2world} obj.world The world context to create the new object
          * @param {number} obj.width Set the width of the rectangle
          * @param {number} obj.height Set the height of the rectangle
+         * @param {b2Vec2} obj.position position of new object
          * @return {rectangle}
          */
         this.rectangle = function (obj) {
             self.physicsObject.call(this, obj);
+
             var fixtureDef = new root.physics.b2.d.b2FixtureDef();
             this.shape.SetAsBox(obj.width, obj.height);
             fixtureDef.shape = this.shape;
@@ -292,6 +299,8 @@ new(function () {
                     this.rectangle = function (obj) {
                         var s = this;
                         root.renderer.create.renderObject.call(this, obj);
+                        obj.width = 20;
+                        obj.height = 20;
                         this.fill = obj.color || '0xAAAAAA';
                         this.graphic.pivot.set(obj.width / 2, obj.height / 2);
                         this.graphic.beginFill(this.fill, 1);
