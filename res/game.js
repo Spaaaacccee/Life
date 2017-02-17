@@ -235,7 +235,7 @@ new(function () {
             }
             this.body = Matter.Bodies.rectangle(obj.position.x / self.scale, obj.position.y / self.scale, obj.width, obj.height);
             Matter.Vertices.clockwiseSort(this.body.vertices);
-
+            Matter.Body.setAngle(this.body, obj.rotation)
             Matter.World.add(root.currentGame.stage.physics.world, this.body);
         }
     })();
