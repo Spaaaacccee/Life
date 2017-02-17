@@ -2,6 +2,7 @@ new(function () {
     var root = this;
     //"use strict";
     this.currentGame;
+    //20 pixels = 1 meter;
     /**
      * Contains methods for use in debugging.
      */
@@ -66,40 +67,42 @@ new(function () {
             this.clock;
             this.frameRate = (obj && obj.frameRate) ? obj.frameRate : 60;
             root.gameObject.genericObject.call(this, obj);
-            this.blockSize = (obj && obj.blockSize) ? obj.blockSize : 50;
+            this.blockSize = (obj && obj.blockSize) ? obj.blockSize : 20;
             this.color = (obj && obj.color) ? obj.color : undefined
             var def = {
-                width: this.blockSize / 2,
-                height: this.blockSize / 2,
+                width: this.blockSize,
+                height: this.blockSize,
                 world: root.currentGame.stage.physics.world,
                 color: this.color,
-                position: obj.position
+                position: obj.position,
+                rotation: obj.rotation
             }
             for (var i = 0, components = ['physics', 'renderer']; i < components.length; i++) {
                 this[components[i]] = new root[components[i]].create.rectangle(def)
                 this[components[i]].gameObject = this;
             }
+            //Returns or sets position, given pixel-based measurements
             Object.defineProperty(this, "position", {
                 get: function () {
                     return {
-                        x: self.physics.body.GetPosition().x * 9,
-                        y: self.physics.body.GetPosition().y * 9
+                        x: self.physics.body.position.x,
+                        y: self.physics.body.position.y
                     };
                 },
                 set: function (vector) {
-                    self.physics.body.SetPosition({
-                        x: vector.x / 9,
-                        y: vector.y / 9
-                    });
+                    self.physics.body.position = {
+                        x: vector.x,
+                        y: vector.y
+                    };
                 }
             });
 
             Object.defineProperty(this, "rotation", {
                 get: function () {
-                    return self.physics.body.GetAngle(); //In degrees
+                    return self.physics.body.angle; //In degrees
                 },
                 set: function (degrees) {
-                    self.physics.body.SetAngle(degrees);
+                    self.physics.body.angle = degrees;
                 }
             });
 
@@ -107,7 +110,7 @@ new(function () {
                 self.renderer.update({
                     x: self.position.x,
                     y: self.position.y,
-                    rotation: root.utility.toRadians(self.rotation)
+                    rotation: self.rotation
                 });
                 requestAnimationFrame(nextFrame)
             }
@@ -120,6 +123,7 @@ new(function () {
                 x: root.utility.randomIntFromInterval(0, root.currentGame.stage.size.x),
                 y: root.utility.randomIntFromInterval(0, root.currentGame.stage.size.y),
             }
+            obj.rotation = root.utility.randomIntFromInterval(0, 360) / 180;
             root.gameObject.block.call(this, obj);
             this.isFood = true;
 
@@ -131,33 +135,28 @@ new(function () {
         var self = this;
         this.gameObject = new root.gameObject.block({
             color: '0x1ABC9C',
-            position: ((obj && obj.position) ? obj.position : root.currentGame.stage.size)
+            position: ((obj && obj.position) ? obj.position : root.currentGame.stage.center)
         });
         this.controller = new(function () {
             var s = this;
+            this.sensitivity = 0.0100;
             //Mouse controller
             this.update = function () {
                 var mousePos = {
-                        x: root.utility.mouse.x,
-                        y: root.utility.mouse.y
-                    }
-                    //var dist = p.dist(mousePos.x, mousePos.y, -cameraLocation.x + innerWidth / 2, -cameraLocation.y + innerHeight / 2);
-                    //Apply Force
-                self.gameObject.physics.body.ApplyImpulse({
-                        x: ((mousePos.x - (innerWidth / 2)) * 0.5),
-                        y: ((mousePos.y - (innerHeight / 2)) * 0.5)
-                    }, {
-                        x: 20,
-                        y: 20
-                    })
-                    //console.log(self.gameObject.physics.body.rotation)
+                    x: root.utility.mouse.x,
+                    y: root.utility.mouse.y
+                }
+                var offsetX = (root.utility.mouse.x - innerWidth / 2) * -1;
+                var offsetY = (root.utility.mouse.y - innerHeight / 2) * -1;
+                Matter.Body.applyForce(self.gameObject.physics.body, {
+                    x: self.gameObject.position.x + offsetX,
+                    y: self.gameObject.position.y + offsetY
+                }, {
+                    x: -offsetX * 0.0000002,
+                    y: -offsetY * 0.0000002
+                });
             };
-
-            function nextFrame() {
-                s.update();
-                requestAnimationFrame(nextFrame)
-            }
-            requestAnimationFrame(nextFrame)
+            root.currentGame.stage.physics.tasks.push(s.update);
         })()
     };
 
@@ -172,50 +171,28 @@ new(function () {
      */
     this.physics = function (obj) {
         var self = this;
-        var isRunning = false;
-        this.frameRate = (obj && obj.frameRate) ? obj.frameRate : 60;
         this.frameCount = 0;
-        this.lastFrameTime = Date.now();
-        var delta = function () {
-            return (Date.now() - self.lastFrameTime) / (1000 / self.frameRate)
+        this.engine = Matter.Engine.create();
+        this.world = self.engine.world;
+        this.update = function () {
+            Matter.Engine.update(self.engine)
+            Matter.Sleeping.update(self.world.bodies, 1)
+            for (var i = 0; i < self.tasks.list.length; i++) {
+                self.tasks.list[i]();
+            }
+            self.frameCount++;
+            requestAnimationFrame(self.update);
         }
-        var clock;
-        var gravity = (obj && obj.gravity) ? obj.gravity : new root.physics.b2.m.b2Vec2(0, 0);
-        this.world = new root.physics.b2.d.b2World(gravity, true);
-        this.debugDaw = this.world.SetDebugDraw(new Box2D.Dynamics.b2DebugDraw())
-            /**
-             * Starts the physics simulation
-             */
-        this.start = function () {
-            if (isRunning == false) {
-                clock = setInterval(function () {
-                    self.step()
-                }, 1000 / self.frameRate)
-                isRunning = true;
-                root.debug.log("Physics simulation started.")
+        this.tasks = new(function () {
+            var self = this;
+            this.list = [];
+            this.push = function (obj) {
+                self.list.push(obj);
+                return self.list.indexOf(obj);
             }
-        };
-        this.stop = function () {
-            if (isRunning == true) {
-                clearInterval(clock);
-                isRunning = false;
-                root.debug.log("Physics simulation stopped.")
-            }
-        };
-        this.step = function () {
-            if (isRunning) {
-                self.world.Step((1000 / self.frameRate) * delta());
-                self.lastFrameTime = Date.now();
-                self.frameCount++;
-            }
-        };
+        })()
+        requestAnimationFrame(self.update);
 
-        /*function nextFrame() {
-            self.step();
-            requestAnimationFrame(nextFrame)
-        }
-        requestAnimationFrame(nextFrame)*/
-        this.start();
     };
     /**
      * Create a new physics object.
@@ -226,10 +203,9 @@ new(function () {
         m: Box2D.Common.Math,
         s: Box2D.Collision.Shapes,
     };
-    root.physics.dFd = new root.physics.b2.d.b2FixtureDef();
     root.physics.create = new(function (obj) {
         var self = this;
-        this.scale = (obj && obj.scale) ? obj.scale : 9;
+        this.scale = (obj && obj.scale) ? obj.scale : 1;
         /**
          * Create a generic physicsObject
          * @param {object}    obj           Options
@@ -238,11 +214,9 @@ new(function () {
          * @return {physicsObject} A new physics object
          */
         this.physicsObject = function (obj) {
-            this.bd = new root.physics.b2.d.b2BodyDef();
-            this.bd.type = root.physics.b2.d.b2Body.b2_dynamicBody;
-            this.shape = new root.physics.b2.s.b2PolygonShape();
-            this.bd.position.Set(obj.position.x / self.scale, obj.position.y / self.scale)
-        };
+
+        }
+
         /**
          * Create a rectangle
          * @extends physicsObject
@@ -255,18 +229,14 @@ new(function () {
          */
         this.rectangle = function (obj) {
             self.physicsObject.call(this, obj);
+            this.dimensions = {
+                width: obj.width,
+                height: obj.height
+            }
+            this.body = Matter.Bodies.rectangle(obj.position.x / self.scale, obj.position.y / self.scale, obj.width, obj.height);
+            Matter.Vertices.clockwiseSort(this.body.vertices);
 
-            var fixtureDef = new root.physics.b2.d.b2FixtureDef();
-            this.shape.SetAsBox(obj.width, obj.height);
-            fixtureDef.shape = this.shape;
-            fixtureDef.density = 10;
-            this.bd.linearDamping = 0.02;
-            this.bd.angularDamping = 0.02
-            this.body = obj.world.CreateBody(this.bd);
-            this.body.CreateFixture(obj.fixtureDef || fixtureDef);
-            root.debug.log("Created New Rectangle");
-            root.debug.log(this.body);
-
+            Matter.World.add(root.currentGame.stage.physics.world, this.body);
         }
     })();
     this.renderers = {
@@ -299,8 +269,6 @@ new(function () {
                     this.rectangle = function (obj) {
                         var s = this;
                         root.renderer.create.renderObject.call(this, obj);
-                        obj.width = 20;
-                        obj.height = 20;
                         this.fill = obj.color || '0xAAAAAA';
                         this.graphic.pivot.set(obj.width / 2, obj.height / 2);
                         this.graphic.beginFill(this.fill, 1);
@@ -347,7 +315,7 @@ new(function () {
         }
     }
     this.logic = function (obj) {
-        this.foodAmount = (obj && obj.foodAmount) ? obj.foodAmount : 400;
+        this.foodAmount = (obj && obj.foodAmount) ? obj.foodAmount : 600;
         for (var i = 0; i < this.foodAmount; i++) {
             var f = new root.gameObject.food();
         }
