@@ -1,0 +1,7 @@
+Object.defineProperty(this, "location", {
+                get: function () {
+                    return s.target.gameObject.position;
+                }
+            })
+            
+            (self.physics.body.angle == self.physics.body.parent.angle) ? self.physics.body.angle : (self.physics.body.angle + self.physics.body.parent.angle)

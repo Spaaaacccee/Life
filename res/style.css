@@ -10,19 +10,24 @@ div#c {
     color: white;
     font-weight: 300
 }
-
 div#main {
-    display:block
+    display: block
 }
-
 div#debugInfo {
     position: absolute;
     top: 0;
     right: 0;
     text-align: right;
     margin: 50px;
-    opacity: 0.2;
+    opacity: 0.5;
 }
 div#debugInfo > p {
     margin: 5px;
+}
+div#debugInfo > #log {
+    margin-top: 10px;
+}
+div#debugInfo > #log > p {
+    margin: 5px;
+    font-size: 12px;
 }

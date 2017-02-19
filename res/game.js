@@ -12,8 +12,17 @@ new(function () {
          * @param {string|object} obj Object to display in the console.
          */
         this.log = function (obj) {
-            //console.log(obj);
+            console.log(obj);
+            if (typeof obj == "string") {
+                var p = document.createElement('p');
+                p.innerHTML = obj;
+                $('#log').append(p);
+                if ($('#log').children().length >= root.debug.log.maxLength) {
+                    ($('#log').children()[0]).remove()
+                }
+            }
         }
+        this.log.maxLength = 10;
         this.stats = new(function () {
             var s = this;
             this.update = function () {
@@ -54,33 +63,10 @@ new(function () {
          * @param {object} obj Options
          * @returns {genericObject} An empty gameObject
          */
-        this.genericObject = function (obj) {};
-        /**
-         * Creates a new block element
-         * @param {object}  obj           Options
-         * @param {int}     obj.blockSize (Optional) Define the size of the block
-         * @param {Vector2} obj.position    position of new object
-         * @returns {block}   A block gameObject
-         */
-        this.block = function (obj) {
+        this.genericObject = function (obj) {
             var self = this;
             this.clock;
             this.frameRate = (obj && obj.frameRate) ? obj.frameRate : 60;
-            root.gameObject.genericObject.call(this, obj);
-            this.blockSize = (obj && obj.blockSize) ? obj.blockSize : 20;
-            this.color = (obj && obj.color) ? obj.color : undefined
-            var def = {
-                width: this.blockSize,
-                height: this.blockSize,
-                world: root.currentGame.stage.physics.world,
-                color: this.color,
-                position: obj.position,
-                rotation: obj.rotation
-            }
-            for (var i = 0, components = ['physics', 'renderer']; i < components.length; i++) {
-                this[components[i]] = new root[components[i]].create.rectangle(def)
-                this[components[i]].gameObject = this;
-            }
             //Returns or sets position, given pixel-based measurements
             Object.defineProperty(this, "position", {
                 get: function () {
@@ -99,7 +85,7 @@ new(function () {
 
             Object.defineProperty(this, "rotation", {
                 get: function () {
-                    return self.physics.body.angle; //In degrees
+                    return (self.physics.body.angle == self.physics.body.parent.angle) ? self.physics.body.angle : (self.physics.body.angle + self.physics.body.parent.angle); //In degrees
                 },
                 set: function (degrees) {
                     self.physics.body.angle = degrees;
@@ -107,16 +93,72 @@ new(function () {
             });
 
             function nextFrame() {
-                self.renderer.update({
-                    x: self.position.x,
-                    y: self.position.y,
-                    rotation: self.rotation
-                });
-                requestAnimationFrame(nextFrame)
+                if (self.renderer) {
+                    self.renderer.update({
+                        x: self.position.x,
+                        y: self.position.y,
+                        rotation: self.rotation
+                    });
+                    requestAnimationFrame(nextFrame)
+                }
             }
             requestAnimationFrame(nextFrame)
                 //this.physics.body.ApplyTorque(200)
         };
+        /**
+         * Creates a new block element
+         * @param {object}  obj           Options
+         * @param {int}     obj.blockSize (Optional) Define the size of the block
+         * @param {Vector2} obj.position    position of new object
+         * @returns {block}   A block gameObject
+         */
+        this.block = function (obj) {
+            var self = this;
+
+            root.gameObject.genericObject.call(this, obj);
+            this.blockSize = (obj && obj.blockSize) ? obj.blockSize : 20;
+            this.color = (obj && obj.color) ? obj.color : undefined
+            var def = {
+                width: this.blockSize,
+                height: this.blockSize,
+                world: root.currentGame.stage.physics.world,
+                color: this.color,
+                position: obj.position,
+                rotation: obj.rotation
+            }
+            for (var i = 0, components = ['physics', 'renderer']; i < components.length; i++) {
+                this[components[i]] = new root[components[i]].create.rectangle(def)
+                this[components[i]].gameObject = this;
+            }
+
+        };
+        this.compositeBlock = function (obj) {
+            var self = this;
+            root.gameObject.genericObject.call(this, obj);
+            this.color = (obj && obj.color) ? obj.color : undefined
+            var def = {
+                width: this.blockSize,
+                height: this.blockSize,
+                world: root.currentGame.stage.physics.world,
+                position: obj.position,
+                rotation: obj.rotation
+            }
+            for (var i = 0, components = ['physics']; i < components.length; i++) {
+                this[components[i]] = new root[components[i]].create.composite(def)
+                this[components[i]].gameObject = this;
+            }
+            this.children = [];
+            this.children.add = function (obj) {
+                Matter.World.remove(root.currentGame.stage.physics.world, obj.physics.body)
+
+                Matter.Body.addPart(self.physics.body, obj.physics.body, false);
+                self.children.push(obj);
+            }
+            this.children.remove = function () {
+                root.debug.log("The method you are trying to access is currently a stub!")
+            }
+            this.children.add(new root.gameObject.block(obj))
+        }
         this.food = function (obj) {
             obj = obj || {}
             obj.position = obj.position ? obj.position : {
@@ -133,13 +175,12 @@ new(function () {
     })();
     this.character = function (obj) {
         var self = this;
-        this.gameObject = new root.gameObject.block({
+        this.gameObject = new root.gameObject.compositeBlock({
             color: '0x1ABC9C',
             position: ((obj && obj.position) ? obj.position : root.currentGame.stage.center)
         });
         this.controller = new(function () {
             var s = this;
-            this.sensitivity = 0.0100;
             //Mouse controller
             this.update = function () {
                 var mousePos = {
@@ -158,6 +199,15 @@ new(function () {
             };
             root.currentGame.stage.physics.tasks.push(s.update);
         })()
+        this.collisionHandler = function (e) {
+            root.debug.log("Collision with body " + e.bodyA.id + " and body " + e.bodyB.id);
+            root.debug.log(e)
+            setTimeout(function () {
+                self.gameObject.children.add(e.bodyB.physicsObject.gameObject)
+            }, 1000)
+
+        }
+        self.gameObject.physics.body.parts[1].onCollide(self.collisionHandler)
     };
 
 
@@ -172,11 +222,25 @@ new(function () {
     this.physics = function (obj) {
         var self = this;
         this.frameCount = 0;
+        Matter.Plugin.register(MatterCollisionEvents)
+        Matter.use('matter-collision-events')
+        Matter.Body.addPart = function (parent, obj) {
+            var parts = parent.parts;
+            Matter.World.remove(root.currentGame.stage.physics.world, obj)
+            parts = parts.slice();
+            parts.shift();
+            parts.push(obj)
+            Matter.Body.setParts(parent, parts, false)
+        }
         this.engine = Matter.Engine.create();
         this.world = self.engine.world;
+        this.world.gravity = {
+            x: 0,
+            y: 0
+        }
         this.update = function () {
             Matter.Engine.update(self.engine)
-            Matter.Sleeping.update(self.world.bodies, 1)
+                //Matter.Sleeping.update(self.world.bodies, 1)
             for (var i = 0; i < self.tasks.list.length; i++) {
                 self.tasks.list[i]();
             }
@@ -213,9 +277,7 @@ new(function () {
          * @param {b2Vec2} obj.position position of new object
          * @return {physicsObject} A new physics object
          */
-        this.physicsObject = function (obj) {
-
-        }
+        this.physicsObject = function (obj) {}
 
         /**
          * Create a rectangle
@@ -229,14 +291,24 @@ new(function () {
          */
         this.rectangle = function (obj) {
             self.physicsObject.call(this, obj);
+            var s = this;
             this.dimensions = {
                 width: obj.width,
                 height: obj.height
             }
-            this.body = Matter.Bodies.rectangle(obj.position.x / self.scale, obj.position.y / self.scale, obj.width, obj.height);
+            this.body = Matter.Bodies.rectangle(obj.position.x / self.scale, obj.position.y / self.scale, obj.width, obj.height)
+            this.body.physicsObject = s;
             Matter.Vertices.clockwiseSort(this.body.vertices);
-            Matter.Body.setAngle(this.body, obj.rotation)
-            Matter.World.add(root.currentGame.stage.physics.world, this.body);
+            obj.rotation = obj.rotation || 0;
+            Matter.Body.rotate(s.body, obj.rotation)
+            Matter.World.add(root.currentGame.stage.physics.world, s.body);
+        }
+        this.composite = function (obj) {
+            self.physicsObject.call(this, obj);
+            var s = this;
+            this.body = Matter.Body.create(obj);
+            this.body.physicsObject = s;
+            Matter.World.add(root.currentGame.stage.physics.world, s.body)
         }
     })();
     this.renderers = {
