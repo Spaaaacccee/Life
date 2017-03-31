@@ -33,8 +33,39 @@ new(function () {
             }
             setInterval(s.update, 1000)
         })()
+        this.debugLayer = new(function () {
+            var el = document.createElement('div');
+            el.id = 'debugLayer';
+            document.body.appendChild(el);
+            this.element = el;
+        })()
+        this.text = new(function () {
+            var setLocation = function (DOMElement, vector) {
+                DOMElement.style.top = vector.y + "px";
+                DOMElement.style.left = vector.x + "px";
+            };
+            this.display = function (obj) {
+                obj.font = obj.font || "20px sans-serif";
+                //STUB
+            }
+            this.attach = function (obj) {
+                //obj.text
+                //obj.func
+                var text = document.createElement('div');
+                text.innerHTML = obj.text;
+                root.debug.debugLayer.element.appendChild(text);
+                setInterval(function () {
+                    setLocation(text, obj.func());
+                }, 20)
+            }
+        })()
     })();
     this.utility = new(function () {
+        this.dist = function (a, b) {
+            var c = a.x - b.x
+            var d = a.y - b.y
+            return Math.sqrt(c * c + d * d);
+        }
         this.randomIntFromInterval = function (min, max) {
             return Math.floor(Math.random() * (max - min + 1) + min);
         }
@@ -175,6 +206,7 @@ new(function () {
     })();
     this.character = function (obj) {
         var self = this;
+        this.occupiedBlocks = function () {};
         this.gameObject = new root.gameObject.compositeBlock({
             color: '0x1ABC9C',
             position: ((obj && obj.position) ? obj.position : root.currentGame.stage.center)
@@ -200,14 +232,64 @@ new(function () {
             root.currentGame.stage.physics.tasks.push(s.update);
         })()
         this.collisionHandler = function (e) {
-            root.debug.log("Collision with body " + e.bodyA.id + " and body " + e.bodyB.id);
-            root.debug.log(e)
-            setTimeout(function () {
-                self.gameObject.children.add(e.bodyB.physicsObject.gameObject)
-            }, 1000)
-
+            if ((e.bodyB.physicsObject.gameObject.isFood ||
+                    e.bodyA.physicsObject.gameObject.isFood) && !
+                (e.bodyB.physicsObject.gameObject.isFood &&
+                    e.bodyA.physicsObject.gameObject.isFood)) {
+                root.debug.log("Collision with body " + e.bodyA.id + " and body " + e.bodyB.id);
+                root.debug.log(e)
+                    //Collision Events
+                root.debug.text.attach({
+                    text: "0",
+                    func: function () {
+                        return root.renderer.worldToScreenspace(e.bodyB.vertices[0]);
+                    }
+                })
+                root.debug.text.attach({
+                    text: "1",
+                    func: function () {
+                        return root.renderer.worldToScreenspace(e.bodyB.vertices[1]);
+                    }
+                })
+                root.debug.text.attach({
+                    text: "2",
+                    func: function () {
+                        return root.renderer.worldToScreenspace(e.bodyB.vertices[2]);
+                    }
+                })
+                root.debug.text.attach({
+                    text: "3",
+                    func: function () {
+                        return root.renderer.worldToScreenspace(e.bodyB.vertices[3]);
+                    }
+                })
+            }
         }
         self.gameObject.physics.body.parts[1].onCollide(self.collisionHandler)
+        root.debug.text.attach({
+            text: "0",
+            func: function () {
+                return root.renderer.worldToScreenspace(self.gameObject.children[0].physics.body.vertices[0]);
+            }
+        })
+        root.debug.text.attach({
+            text: "1",
+            func: function () {
+                return root.renderer.worldToScreenspace(self.gameObject.children[0].physics.body.vertices[1]);
+            }
+        })
+        root.debug.text.attach({
+            text: "2",
+            func: function () {
+                return root.renderer.worldToScreenspace(self.gameObject.children[0].physics.body.vertices[2]);
+            }
+        })
+        root.debug.text.attach({
+            text: "3",
+            func: function () {
+                return root.renderer.worldToScreenspace(self.gameObject.children[0].physics.body.vertices[3]);
+            }
+        })
     };
 
 
@@ -226,7 +308,7 @@ new(function () {
         Matter.use('matter-collision-events')
         Matter.Body.addPart = function (parent, obj) {
             var parts = parent.parts;
-            Matter.World.remove(root.currentGame.stage.physics.world, obj)
+            Matter.World.remove((obj.parent.parts.length < 2) ? root.currentGame.stage.physics.world : obj.parent, obj)
             parts = parts.slice();
             parts.shift();
             parts.push(obj)
@@ -386,6 +468,9 @@ new(function () {
             y: screenSpaceY
         }
     }
+    root.renderer.getContext = function () {
+        return ("#c")[0].childNodes[1];
+    }
     this.logic = function (obj) {
         this.foodAmount = (obj && obj.foodAmount) ? obj.foodAmount : 600;
         for (var i = 0; i < this.foodAmount; i++) {
@@ -406,7 +491,7 @@ new(function () {
             this.target = obj ? (obj.target || undefined) : false;
             Object.defineProperty(this, "location", {
                 get: function () {
-                    return s.target.gameObject.position;
+                    return s.target.position;
                 }
             })
         };
@@ -440,7 +525,7 @@ new(function () {
         this.camera = new root.camera();
         this.character = new root.character();
         this.camera.follow({
-            target: this.character
+            target: this.character.gameObject.physics.body.parts[1]
         });
         this.logic = new root.logic();
 
