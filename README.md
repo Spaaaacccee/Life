@@ -77,7 +77,6 @@ A game
 >**add(gameObject)** 
 **`method`**  *adds a gameObject to the stage*
 _(stub)_
-
  >  - **gameObject**
     **`gameObject`** *Object to add *
 
@@ -94,7 +93,6 @@ _(stub)_
 
 >**follow(obj)** 
 **`method`** *follow a specified gameObject*
-
  >  - **obj.target**
     **`gameObject`** *Object to follow *
 
@@ -146,14 +144,12 @@ _(stub)_
 >**addPart(obj)**
 **`method`** *adds a child to the compound* 
 _(stub)_
-
  >  - **obj**
     **`gameObject`** *Object to add *
 
 >**removePart(obj)**
 **`method`** *removes a child to the compound* 
 _(stub)_
-
 >  - **obj**
     **`gameObject`** *Object to remove *
 
@@ -219,7 +215,6 @@ _(stub)_
 
 >**worldToScreenspace(obj)** 
 **`method`** *follow a specified gameObject*
-
 >  - **obj**
     **`vector2`** `{x,y}` *position of object*
     
