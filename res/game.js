@@ -20,9 +20,17 @@ new(function () {
                 if ($('#log').children().length >= root.debug.log.maxLength) {
                     ($('#log').children()[0]).remove()
                 }
+            } else if (typeof obj == "object" && obj.hasOwnProperty("text")) {
+                var p = document.createElement('p');
+                p.innerHTML = obj.text;
+                if (obj.hasOwnProperty("flag")) p.classList.add(obj.flag);
+                $('#log').append(p);
+                if ($('#log').children().length >= root.debug.log.maxLength) {
+                    ($('#log').children()[0]).remove()
+                }
             }
         }
-        this.log.maxLength = 10;
+        this.log.maxLength = 20;
         this.stats = new(function () {
             var s = this;
             this.update = function () {
@@ -51,20 +59,85 @@ new(function () {
             this.attach = function (obj) {
                 //obj.text
                 //obj.func
+                //obj.offset
+                obj.offset = obj.offset ? obj.offset : {
+                    x: 0,
+                    y: 0
+                }
                 var text = document.createElement('div');
-                text.innerHTML = obj.text;
+                if (typeof obj.text == 'string') {
+                    text.innerHTML = obj.text;
+                } else if (typeof obj.text == 'function') {
+                    text.innterHTML = obj.text();
+                }
                 root.debug.debugLayer.element.appendChild(text);
                 setInterval(function () {
-                    setLocation(text, obj.func());
-                }, 20)
+                    if (typeof obj.text == 'function') {
+                        text.innterHTML = obj.text();
+                    }
+                    setLocation(text, root.utility.addVertices(obj.func(), obj.offset));
+                }, (1000 / 60))
+                setLocation(text, root.utility.addVertices(obj.func(), obj.offset));
+            }
+        })()
+        this.physics = new(function () {
+            var shownBlockVertices = [];
+            this.showBlockVertices = function ( /*matterBodyObject*/ block) {
+                if (shownBlockVertices.indexOf(block) == -1) {
+                    root.debug.text.attach({
+                        text: "0",
+                        func: function () {
+                            return root.renderer.worldToScreenspace(block.vertices[0]);
+                        }
+                    })
+                    root.debug.text.attach({
+                        text: "1",
+                        func: function () {
+                            return root.renderer.worldToScreenspace(block.vertices[1]);
+                        }
+                    })
+                    root.debug.text.attach({
+                        text: "2",
+                        func: function () {
+                            return root.renderer.worldToScreenspace(block.vertices[2]);
+                        }
+                    })
+                    root.debug.text.attach({
+                        text: "3",
+                        func: function () {
+                            return root.renderer.worldToScreenspace(block.vertices[3]);
+                        }
+                    })
+                    shownBlockVertices.push(block);
+                    root.debug.log({
+                        text: 'Displaying vertices for block ' + block.id + '.',
+                    })
+                } else {
+                    root.debug.log({
+                        text: 'Vertices of block ' + block.id + ' already shown.',
+                        flag: 'warning'
+                    })
+                }
             }
         })()
     })();
     this.utility = new(function () {
-        this.dist = function (a, b) {
+        this.addVertices = function (a, b) {
+            return {
+                x: a.x + b.x,
+                y: a.y + b.y
+            }
+        }
+        this.distance = function (a, b) {
             var c = a.x - b.x
             var d = a.y - b.y
             return Math.sqrt(c * c + d * d);
+        }
+        this.midpoint = function (a, b) {
+            return {
+                x: (a.x + b.x) / 2,
+                y: (a.y + b.y) / 2
+            }
         }
         this.randomIntFromInterval = function (min, max) {
             return Math.floor(Math.random() * (max - min + 1) + min);
@@ -113,7 +186,6 @@ new(function () {
                     };
                 }
             });
-
             Object.defineProperty(this, "rotation", {
                 get: function () {
                     return (self.physics.body.angle == self.physics.body.parent.angle) ? self.physics.body.angle : (self.physics.body.angle + self.physics.body.parent.angle); //In degrees
@@ -145,7 +217,6 @@ new(function () {
          */
         this.block = function (obj) {
             var self = this;
-
             root.gameObject.genericObject.call(this, obj);
             this.blockSize = (obj && obj.blockSize) ? obj.blockSize : 20;
             this.color = (obj && obj.color) ? obj.color : undefined
@@ -161,7 +232,6 @@ new(function () {
                 this[components[i]] = new root[components[i]].create.rectangle(def)
                 this[components[i]].gameObject = this;
             }
-
         };
         this.compositeBlock = function (obj) {
             var self = this;
@@ -181,7 +251,6 @@ new(function () {
             this.children = [];
             this.children.add = function (obj) {
                 Matter.World.remove(root.currentGame.stage.physics.world, obj.physics.body)
-
                 Matter.Body.addPart(self.physics.body, obj.physics.body, false);
                 self.children.push(obj);
             }
@@ -189,6 +258,27 @@ new(function () {
                 root.debug.log("The method you are trying to access is currently a stub!")
             }
             this.children.add(new root.gameObject.block(obj))
+        }
+        this.emptyCompound = function (obj) {
+
+            var self = this;
+
+            root.gameObject.genericObject.call(this, obj);
+
+            for (var i = 0, components = ['physics']; i < components.length; i++) {
+                this[components[i]] = new root[components[i]].create.compound(obj)
+                this[components[i]].gameObject = this;
+            }
+
+            this.addPart = function (obj) {
+                var parts = self.physics.body.parts;
+                Matter.World.remove((obj.parent.parts.length < 2) ? root.currentGame.stage.physics.world : obj.parent, obj)
+                parts = parts.slice();
+                parts.shift();
+                parts.push(obj)
+                Matter.Body.setParts(parent, parts, false)
+            }
+
         }
         this.food = function (obj) {
             obj = obj || {}
@@ -199,15 +289,40 @@ new(function () {
             obj.rotation = root.utility.randomIntFromInterval(0, 360) / 180;
             root.gameObject.block.call(this, obj);
             this.isFood = true;
-
             //b.physics.mass = 0.01;
             //b.physics.frictionAir = 0.0004;
+        }
+        this.constraint = function (obj) {
+            //obj.A.body (use block not physics Object)
+            //obj.A.vertex
+            //obj.B.body (use block not physics Object)
+            //obj.B.vertex
+            //obj.stiffness
+            root.gameObject.genericObject.call(this, obj);
+            for (var i = 0, components = ['physics']; i < components.length; i++) {
+                this[components[i]] = new root[components[i]].create.constraint(obj)
+                this[components[i]].gameObject = this;
+            }
         }
     })();
     this.character = function (obj) {
         var self = this;
+        this.consumedBlocks = [];
+        this.collection = new(function () {
+            this.map;
+            this.blockWidth =
+                this.addBlock = function (obj) {
+                    //x coord
+                    //y coord
+                }
+            this.exists = function () {
+                //tests whether a block exists at coordinate
+            }
+            this.removeBlock = function () {}
+            this.explode = function () {}
+        })()
         this.occupiedBlocks = function () {};
-        this.gameObject = new root.gameObject.compositeBlock({
+        this.gameObject = new root.gameObject.block({
             color: '0x1ABC9C',
             position: ((obj && obj.position) ? obj.position : root.currentGame.stage.center)
         });
@@ -232,67 +347,72 @@ new(function () {
             root.currentGame.stage.physics.tasks.push(s.update);
         })()
         this.collisionHandler = function (e) {
-            if ((e.bodyB.physicsObject.gameObject.isFood ||
-                    e.bodyA.physicsObject.gameObject.isFood) && !
-                (e.bodyB.physicsObject.gameObject.isFood &&
-                    e.bodyA.physicsObject.gameObject.isFood)) {
-                root.debug.log("Collision with body " + e.bodyA.id + " and body " + e.bodyB.id);
-                root.debug.log(e)
-                    //Collision Events
-                root.debug.text.attach({
-                    text: "0",
-                    func: function () {
-                        return root.renderer.worldToScreenspace(e.bodyB.vertices[0]);
-                    }
+            if (false) {
+                root.debug.log({
+                    text: "Collision with body " + e.bodyA.id + " and body " + e.bodyB.id,
+                    flag: 'info'
                 })
-                root.debug.text.attach({
-                    text: "1",
-                    func: function () {
-                        return root.renderer.worldToScreenspace(e.bodyB.vertices[1]);
+
+                function findClosestEdges(bodyA, bodyB) {
+                    var eDIs = [];
+                    var edgeDistanceInfo = function () {
+                        this.A = {};
+                        this.B = {};
+                        this.A.body;
+                        this.B.body;
+                        this.A.edge = {};
+                        this.B.edge = {};
+                        this.A.edge.index;
+                        this.B.edge.index;
+                        this.distance;
                     }
-                })
-                root.debug.text.attach({
-                    text: "2",
-                    func: function () {
-                        return root.renderer.worldToScreenspace(e.bodyB.vertices[2]);
+                    for (var a = 0; a < 4; a++) {
+                        for (var b = 0; b < 4; b++) {
+                            var eDI = new edgeDistanceInfo();
+                            eDI.A.body = bodyA;
+                            eDI.B.body = bodyB;
+                            eDI.A.edge.midpoint = root.utility.midpoint(bodyA.vertices[a], bodyA.vertices[(a + 1) % 4]);
+                            eDI.B.edge.midpoint = root.utility.midpoint(bodyB.vertices[b], bodyB.vertices[(b + 1) % 4]);
+                            eDI.distance = root.utility.distance(eDI.A.edge.midpoint, eDI.B.edge.midpoint);
+                            eDI.A.edge.index = a;
+                            eDI.B.edge.index = b;
+                            eDIs.push(eDI);
+                        }
                     }
-                })
-                root.debug.text.attach({
-                    text: "3",
-                    func: function () {
-                        return root.renderer.worldToScreenspace(e.bodyB.vertices[3]);
-                    }
-                })
+                    eDIs.sort(function (elA, elB) {
+                        return elA.distance - elB.distance;
+                    })
+                    root.debug.log('closestEdges: A: ' + eDIs[0].A.edge.index + '  B: ' + eDIs[0].B.edge.index)
+                    root.debug.log(eDIs)
+                    root.gameObject.constraint({
+                        A: {
+                            body: eDIs[0].A.body.physicsObject.gameObject,
+                            vertex: (eDIs[0].A.edge.index + 1) % 4
+                        },
+                        B: {
+                            body: eDIs[0].B.body.physicsObject.gameObject,
+                            vertex: (eDIs[0].B.edge.index) % 4
+                        },
+                    })
+                    root.gameObject.constraint({
+                        A: {
+                            body: eDIs[0].A.body.physicsObject.gameObject,
+                            vertex: (eDIs[0].A.edge.index) % 4
+                        },
+                        B: {
+                            body: eDIs[0].B.body.physicsObject.gameObject,
+                            vertex: (eDIs[0].B.edge.index + 1) % 4
+                        },
+                    })
+
+                }
+                findClosestEdges(e.bodyA, e.bodyB);
             }
         }
-        self.gameObject.physics.body.parts[1].onCollide(self.collisionHandler)
-        root.debug.text.attach({
-            text: "0",
-            func: function () {
-                return root.renderer.worldToScreenspace(self.gameObject.children[0].physics.body.vertices[0]);
-            }
-        })
-        root.debug.text.attach({
-            text: "1",
-            func: function () {
-                return root.renderer.worldToScreenspace(self.gameObject.children[0].physics.body.vertices[1]);
-            }
-        })
-        root.debug.text.attach({
-            text: "2",
-            func: function () {
-                return root.renderer.worldToScreenspace(self.gameObject.children[0].physics.body.vertices[2]);
-            }
-        })
-        root.debug.text.attach({
-            text: "3",
-            func: function () {
-                return root.renderer.worldToScreenspace(self.gameObject.children[0].physics.body.vertices[3]);
-            }
-        })
+        self.gameObject.physics.body.onCollide(self.collisionHandler)
+        self.consumedBlocks.push(self.gameObject)
+        root.debug.physics.showBlockVertices(self.gameObject.physics.body);
     };
-
-
     /**
      * Create a new physics instance
      * @type {physics}
@@ -306,14 +426,6 @@ new(function () {
         this.frameCount = 0;
         Matter.Plugin.register(MatterCollisionEvents)
         Matter.use('matter-collision-events')
-        Matter.Body.addPart = function (parent, obj) {
-            var parts = parent.parts;
-            Matter.World.remove((obj.parent.parts.length < 2) ? root.currentGame.stage.physics.world : obj.parent, obj)
-            parts = parts.slice();
-            parts.shift();
-            parts.push(obj)
-            Matter.Body.setParts(parent, parts, false)
-        }
         this.engine = Matter.Engine.create();
         this.world = self.engine.world;
         this.world.gravity = {
@@ -338,7 +450,6 @@ new(function () {
             }
         })()
         requestAnimationFrame(self.update);
-
     };
     /**
      * Create a new physics object.
@@ -360,17 +471,16 @@ new(function () {
          * @return {physicsObject} A new physics object
          */
         this.physicsObject = function (obj) {}
-
-        /**
-         * Create a rectangle
-         * @extends physicsObject
-         * @param {object} obj Options
-         * @param {b2world} obj.world The world context to create the new object
-         * @param {number} obj.width Set the width of the rectangle
-         * @param {number} obj.height Set the height of the rectangle
-         * @param {b2Vec2} obj.position position of new object
-         * @return {rectangle}
-         */
+            /**
+             * Create a rectangle
+             * @extends physicsObject
+             * @param {object} obj Options
+             * @param {b2world} obj.world The world context to create the new object
+             * @param {number} obj.width Set the width of the rectangle
+             * @param {number} obj.height Set the height of the rectangle
+             * @param {b2Vec2} obj.position position of new object
+             * @return {rectangle}
+             */
         this.rectangle = function (obj) {
             self.physicsObject.call(this, obj);
             var s = this;
@@ -384,11 +494,52 @@ new(function () {
             obj.rotation = obj.rotation || 0;
             Matter.Body.rotate(s.body, obj.rotation)
             Matter.World.add(root.currentGame.stage.physics.world, s.body);
+            //root.debug.physics.showBlockVertices(s.body);
         }
         this.composite = function (obj) {
             self.physicsObject.call(this, obj);
             var s = this;
             this.body = Matter.Body.create(obj);
+            this.body.physicsObject = s;
+            Matter.World.add(root.currentGame.stage.physics.world, s.body)
+        }
+        this.constraint = function (obj) {
+            self.physicsObject.call(this, obj);
+            var s = this;
+            this.body = Matter.Constraint.create({
+                stiffness: obj.stiffness || 0.5,
+                length: 0.01,
+                pointA: {
+                    x: obj.A.body.physics.body.vertices[obj.A.vertex].x - obj.A.body.position.x,
+                    y: obj.A.body.physics.body.vertices[obj.A.vertex].y - obj.A.body.position.y
+                },
+                pointB: {
+                    x: obj.B.body.physics.body.vertices[obj.B.vertex].x - obj.B.body.position.x,
+                    y: obj.B.body.physics.body.vertices[obj.B.vertex].y - obj.B.body.position.y
+                },
+                bodyA: obj.A.body.physics.body,
+                bodyB: obj.B.body.physics.body
+            })
+            this.body.physicsObject = s;
+            Matter.World.add(root.currentGame.stage.physics.world, s.body)
+                /* root.debug.text.attach({
+                     text: 'A',
+                     func: function () {
+                         return root.renderer.worldToScreenspace(obj.A.body.physics.body.vertices[obj.A.vertex])
+                     }
+                 })
+                 root.debug.text.attach({
+                     text: 'B',
+                     func: function () {
+                         return root.renderer.worldToScreenspace(obj.B.body.physics.body.vertices[obj.B.vertex])
+                     }
+                 })*/
+            root.debug.log('created constraint between' + obj.A.vertex + "-" + obj.B.vertex)
+        }
+        this.compound = function (obj) {
+            self.physicsObject.call(this, obj);
+            var s = this;
+            this.body = Matter.create();
             this.body.physicsObject = s;
             Matter.World.add(root.currentGame.stage.physics.world, s.body)
         }
@@ -525,10 +676,9 @@ new(function () {
         this.camera = new root.camera();
         this.character = new root.character();
         this.camera.follow({
-            target: this.character.gameObject.physics.body.parts[1]
+            target: this.character.gameObject.physics.body
         });
         this.logic = new root.logic();
-
     };
     this.init = (function () {
         new root.game();

@@ -19,10 +19,10 @@ div#debugInfo {
     right: 0;
     text-align: right;
     margin: 50px;
-    opacity: 0.5;
 }
 div#debugInfo > p {
     margin: 5px;
+    opacity: 0.5;
 }
 div#debugInfo > #log {
     margin-top: 10px;
@@ -30,6 +30,15 @@ div#debugInfo > #log {
 div#debugInfo > #log > p {
     margin: 5px;
     font-size: 12px;
+    opacity: 0.5;
+}
+div#debugInfo > #log > p.warning {
+    color: deeppink;
+    opacity: 1;
+}
+div#debugInfo > #log > p.info {
+    color: cyan;
+    opacity: 0.9;
 }
 #debugLayer {
     position: fixed;
