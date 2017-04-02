@@ -1,12 +1,12 @@
-#Snap
+# Snap
 
 A game
 
-##Documentation
+## Documentation
 
-###**root**
+### **root**
 
-#####**properties**
+##### **properties**
 
 >**currentGame** 
 **`game`** *current instance of game*
@@ -35,14 +35,14 @@ A game
 >**stage** 
 **`object`** *contains definitions for stage*
 
-#####**static methods**
+##### **static methods**
 
 >**init** 
 **`method`** *instantiates a game*
 
-###**game**
+### **game**
 
-#####**properties**
+##### **properties**
 
 >**stage** 
 **`stage`** *instance of stage*
@@ -56,9 +56,9 @@ A game
 >**logic** 
 **`logic`** *instance of logic engine*
 
-###**stage**
+### **stage**
 
-#####**properties**
+##### **properties**
 
 >**size** 
 **`vector2`** `{x,y}` *size of world*
@@ -72,7 +72,7 @@ A game
 >**renderer** 
 **`renderer`**  *instance of renderer engine*
 
-#####**methods**
+##### **methods**
 
 >**add(gameObject)** 
 **`method`**  *adds a gameObject to the stage*
@@ -81,16 +81,16 @@ _(stub)_
  >  - **gameObject**
     **`gameObject`** *Object to add *
 
-###**camera**
+### **camera**
 
-#####**new camera(obj)**
+##### **new camera(obj)**
 
-#####**properties**
+##### **properties**
 
 >**location** 
 **`vector2`** `{x,y}` *location of camera*
 
-#####**methods**
+##### **methods**
 
 >**follow(obj)** 
 **`method`** *follow a specified gameObject*
@@ -98,11 +98,11 @@ _(stub)_
  >  - **obj.target**
     **`gameObject`** *Object to follow *
 
-###**gameObject**
+### **gameObject**
 
-####genericObject
+#### genericObject
 
-#####**properties**
+##### **properties**
 
 >**position** 
 **`vector2`** `{x,y}` *gets or sets the position*
@@ -110,9 +110,9 @@ _(stub)_
 >**rotation** 
 **`number`**  *gets or sets the rotation*
 
-####block *extends genericObject*
+#### block *extends genericObject*
 
-#####**new block(obj)**
+##### **new block(obj)**
 >**obj.blockSize** 
 **`integer`** *define the size of the block*
 
@@ -122,7 +122,7 @@ _(stub)_
 >**obj.color**
 **`string`** `'#FFFFFF'` *colour of new object*
 
-#####**properties**
+##### **properties**
 
 >**physics**
 **`physicsObject`** *attached physicsObject*
@@ -130,18 +130,18 @@ _(stub)_
 >**renderer**
 **`renderer`** *attached renderer*
 
-####emptyCompound *extends genericObject*
+#### emptyCompound *extends genericObject*
 
-#####**new emptyCompound(obj)**
+##### **new emptyCompound(obj)**
 
 >**stub**
 
-#####**properties**
+##### **properties**
 
 >**physics**
 **`physicsObject`** *attached physicsObject*
 
-#####**methods**
+##### **methods**
 
 >**addPart(obj)**
 **`method`** *adds a child to the compound* 
@@ -159,9 +159,9 @@ _(stub)_
 
 
 
-###physics
+### physics
 
-####properties
+#### properties
 
 >**world**
 **`Matter.World`** *instance of Matter's world object*
@@ -170,11 +170,11 @@ _(stub)_
 **`object`** *library of instantiable physicsObjects*
 
 
-###**physicsObject**
+### **physicsObject**
 
-####rectangle *extends physicsObject*
+#### rectangle *extends physicsObject*
 
-#####**new rectangle(obj)**
+##### **new rectangle(obj)**
 
 >**obj.width**
 **`integer`** *width of rectangle*
@@ -188,9 +188,9 @@ _(stub)_
 >**rotation** 
 **`number`**  *rotation of new object*
 
-####constraint *extends physicsObject*
+#### constraint *extends physicsObject*
 
-#####**new constraint(obj)**
+##### **new constraint(obj)**
 
 >**obj.stiffness**
 **`integer`** *stiffness of joint
@@ -213,9 +213,9 @@ _(stub)_
 >**obj.B.vertex**
 **`integer`** *Vertex of object B to attach to*
 
-###renderer
+### renderer
 
-#####**static methods**
+##### **static methods**
 
 >**worldToScreenspace(obj)** 
 **`method`** *follow a specified gameObject*
@@ -223,10 +223,10 @@ _(stub)_
  >  - **obj**
     **`vector2`** `{x,y}` *position of object*
     
-    > *returns* **`vector2`** `{x,y}` *screen-space position of object*
+> *returns* **`vector2`** `{x,y}` *screen-space position of object*
     
-    >**getContext()** 
+>**getContext()** 
 **`method`** *get the DOM canvas context*
     
-    > *returns* **`HTMLElement`** `<canvas>` *canvas currently used*
+> *returns* **`HTMLElement`** `<canvas>` *canvas currently used*
 
