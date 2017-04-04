@@ -188,12 +188,18 @@ new(function () {
             });
             Object.defineProperty(this, "rotation", {
                 get: function () {
-                    return (self.physics.body.angle == self.physics.body.parent.angle) ? self.physics.body.angle : (self.physics.body.angle + self.physics.body.parent.angle); //In degrees
+                    return (self.physics.body.angle == self.physics.body.parent.angle) ? self.physics.body.angle : (self.physics.body.angle + self.physics.body.parent.angle); //In radians
                 },
-                set: function (degrees) {
-                    self.physics.body.angle = degrees;
+                set: function (radians) {
+                    Matter.Body.setAngle(self.physics.body, radians);
                 }
             });
+
+            this.remove = function () {
+                this.deleted = true;
+                if (self.physics) self.physics.remove();
+                if (self.renderer) self.renderer.remove();
+            }
 
             function nextFrame() {
                 if (self.renderer) {
@@ -226,7 +232,8 @@ new(function () {
                 world: root.currentGame.stage.physics.world,
                 color: this.color,
                 position: obj.position,
-                rotation: obj.rotation
+                rotation: obj.rotation,
+                delay: obj.delay ? obj.delay : 0
             }
             for (var i = 0, components = ['physics', 'renderer']; i < components.length; i++) {
                 this[components[i]] = new root[components[i]].create.rectangle(def)
@@ -242,7 +249,9 @@ new(function () {
                 height: this.blockSize,
                 world: root.currentGame.stage.physics.world,
                 position: obj.position,
-                rotation: obj.rotation
+                rotation: obj.rotation,
+                delay: obj.delay ? obj.delay : 0
+
             }
             for (var i = 0, components = ['physics']; i < components.length; i++) {
                 this[components[i]] = new root[components[i]].create.composite(def)
@@ -272,11 +281,11 @@ new(function () {
 
             this.addPart = function (obj) {
                 var parts = self.physics.body.parts;
-                Matter.World.remove((obj.parent.parts.length < 2) ? root.currentGame.stage.physics.world : obj.parent, obj)
+                Matter.World.remove((obj.physics.body.parent.parts.length < 2) ? root.currentGame.stage.physics.world : obj.physics.body.parent, obj.physics.body)
                 parts = parts.slice();
                 parts.shift();
-                parts.push(obj)
-                Matter.Body.setParts(parent, parts, false)
+                parts.push(obj.physics.body)
+                Matter.Body.setParts(self.physics.body, parts, false)
             }
 
         }
@@ -307,25 +316,73 @@ new(function () {
     })();
     this.character = function (obj) {
         var self = this;
-        this.consumedBlocks = [];
         this.collection = new(function () {
-            this.map;
-            this.blockWidth =
-                this.addBlock = function (obj) {
-                    //x coord
-                    //y coord
+            var s = this;
+            this.map = new(function () {
+                var m = []
+                this.add = function (obj) {
+                    if (typeof m[obj.position.x] == 'undefined') m[obj.position.x] = [];
+                    m[obj.position.x][obj.position.y] = obj.gameObject;
                 }
-            this.exists = function () {
+                this.get = function (obj) {
+                    if (typeof m[obj.x] == 'undefined' || typeof m[obj.x][obj.y] == 'undefined') return null
+                    else return m[obj.x][obj.y]
+                }
+            })(); //2d array
+
+            this.addBlock = function (obj) {
+                //x coord
+                //y coord
+
+                var block = new root.gameObject.block({
+                    color: '0x1ABC9C',
+                    position: {
+                        x: obj.position.x * 20 + self.gameObject.position.x,
+                        y: obj.position.y * 20 + self.gameObject.position.y
+                    },
+                    delay: obj.delay || 0
+                })
+                var tempComposite = Matter.Composite.create();
+                Matter.Composite.add(tempComposite, block.physics.body);
+                Matter.Composite.rotate(tempComposite, self.gameObject.rotation, self.gameObject.position);
+                Matter.Composite.remove(tempComposite, block.physics.body)
+                block.mapLocation = {
+                    x: obj.position.x,
+                    y: obj.position.y
+                }
+                self.collection.map.add({
+                    gameObject: block,
+                    position: block.mapLocation
+                })
+                if (obj.delay) {
+                    setTimeout(function () {
+                        self.gameObject.addPart(block);
+                    }, obj.delay)
+                } else {
+                    self.gameObject.addPart(block);
+                }
+
+            }
+            this.exists = function (obj) {
                 //tests whether a block exists at coordinate
+                return self.collection.map.get(obj) == null ? false : true
             }
             this.removeBlock = function () {}
             this.explode = function () {}
         })()
         this.occupiedBlocks = function () {};
-        this.gameObject = new root.gameObject.block({
-            color: '0x1ABC9C',
-            position: ((obj && obj.position) ? obj.position : root.currentGame.stage.center)
+        this.gameObject = new root.gameObject.emptyCompound({
+            position: root.currentGame.stage.center
         });
+        //self.collection.addBlock()
+        self.collection.addBlock({
+            position: {
+                x: 0,
+                y: 0
+            },
+            delay: 0
+        })
+        self.gameObject.parent = self;
         this.controller = new(function () {
             var s = this;
             //Mouse controller
@@ -347,71 +404,140 @@ new(function () {
             root.currentGame.stage.physics.tasks.push(s.update);
         })()
         this.collisionHandler = function (e) {
-            if (false) {
-                root.debug.log({
-                    text: "Collision with body " + e.bodyA.id + " and body " + e.bodyB.id,
-                    flag: 'info'
-                })
+            root.debug.log({
+                text: "Collision with body " + e.bodyA.id + " and body " + e.bodyB.id,
+                flag: 'info'
+            })
+            var active;
+            var passive;
+            if (typeof e.bodyA.physicsObject.gameObject.mapLocation == 'undefined' && typeof e.bodyB.physicsObject.gameObject.mapLocation != 'undefined') {
+                active = e.bodyB;
+                passive = e.bodyA;
+            } else if (typeof e.bodyB.physicsObject.gameObject.mapLocation == 'undefined' && typeof e.bodyA.physicsObject.gameObject.mapLocation != 'undefined') {
+                active = e.bodyA;
+                passive = e.bodyB;
+            } else {
+                return false;
+            }
+            if (passive.physicsObject.gameObject.collideable === false) return null;
+            //bodyA = active, bodyB = passive
+            var eDIs = [];
+            var edgeDistanceInfo = function () {
+                this.A = {};
+                this.B = {};
+                this.A.body;
+                this.B.body;
+                this.A.edge = {};
+                this.B.edge = {};
+                this.A.edge.index;
+                this.B.edge.index;
+                this.distance;
+            }
+            for (var a = 0; a < 4; a++) {
+                for (var b = 0; b < 4; b++) {
+                    var eDI = new edgeDistanceInfo();
+                    eDI.A.body = active;
+                    eDI.B.body = passive;
+                    eDI.A.edge.midpoint = root.utility.midpoint(active.vertices[a], active.vertices[(a + 1) % 4]);
+                    eDI.B.edge.midpoint = root.utility.midpoint(passive.vertices[b], passive.vertices[(b + 1) % 4]);
+                    eDI.distance = root.utility.distance(eDI.A.edge.midpoint, eDI.B.edge.midpoint);
+                    eDI.A.edge.index = a;
+                    eDI.B.edge.index = b;
+                    eDIs.push(eDI);
+                }
+            }
+            eDIs.sort(function (elA, elB) {
+                return elA.distance - elB.distance;
+            })
 
-                function findClosestEdges(bodyA, bodyB) {
-                    var eDIs = [];
-                    var edgeDistanceInfo = function () {
-                        this.A = {};
-                        this.B = {};
-                        this.A.body;
-                        this.B.body;
-                        this.A.edge = {};
-                        this.B.edge = {};
-                        this.A.edge.index;
-                        this.B.edge.index;
-                        this.distance;
+            //find closest edge that can bind
+            var newBlockLocation;
+            var closestEdgeThatCanBind = (function () {
+                for (var i = 0; i < eDIs.length; i++) {
+                    var activeLocation = eDIs[i].A.body.physicsObject.gameObject.mapLocation;
+                    var activeEdge = eDIs[i].A.edge.index;
+                    var positionVector;
+                    //switch
+                    switch (activeEdge) {
+                        case 0:
+                            positionVector = {
+                                x: 0,
+                                y: -1
+                            }
+                            break;
+                        case 1:
+                            positionVector = {
+                                x: 1,
+                                y: 0
+                            }
+                            break;
+                        case 2:
+                            positionVector = {
+                                x: 0,
+                                y: 1
+                            }
+                            break;
+                        case 3:
+                            positionVector = {
+                                x: -1,
+                                y: 0
+                            }
+                            break;
                     }
-                    for (var a = 0; a < 4; a++) {
-                        for (var b = 0; b < 4; b++) {
-                            var eDI = new edgeDistanceInfo();
-                            eDI.A.body = bodyA;
-                            eDI.B.body = bodyB;
-                            eDI.A.edge.midpoint = root.utility.midpoint(bodyA.vertices[a], bodyA.vertices[(a + 1) % 4]);
-                            eDI.B.edge.midpoint = root.utility.midpoint(bodyB.vertices[b], bodyB.vertices[(b + 1) % 4]);
-                            eDI.distance = root.utility.distance(eDI.A.edge.midpoint, eDI.B.edge.midpoint);
-                            eDI.A.edge.index = a;
-                            eDI.B.edge.index = b;
-                            eDIs.push(eDI);
-                        }
+                    if (!self.collection.exists(root.utility.addVertices(activeLocation, positionVector))) {
+                        newBlockLocation = root.utility.addVertices(activeLocation, positionVector)
+                        return eDIs[i];
+
                     }
-                    eDIs.sort(function (elA, elB) {
-                        return elA.distance - elB.distance;
-                    })
-                    root.debug.log('closestEdges: A: ' + eDIs[0].A.edge.index + '  B: ' + eDIs[0].B.edge.index)
-                    root.debug.log(eDIs)
-                    root.gameObject.constraint({
-                        A: {
-                            body: eDIs[0].A.body.physicsObject.gameObject,
-                            vertex: (eDIs[0].A.edge.index + 1) % 4
-                        },
-                        B: {
-                            body: eDIs[0].B.body.physicsObject.gameObject,
-                            vertex: (eDIs[0].B.edge.index) % 4
-                        },
-                    })
-                    root.gameObject.constraint({
-                        A: {
-                            body: eDIs[0].A.body.physicsObject.gameObject,
-                            vertex: (eDIs[0].A.edge.index) % 4
-                        },
-                        B: {
-                            body: eDIs[0].B.body.physicsObject.gameObject,
-                            vertex: (eDIs[0].B.edge.index + 1) % 4
-                        },
-                    })
 
                 }
-                findClosestEdges(e.bodyA, e.bodyB);
-            }
+                return null;
+            })()
+
+            if (closestEdgeThatCanBind == null) return;
+
+            root.debug.log('closest edges that can bind: A: ' + closestEdgeThatCanBind.A.edge.index + '  B: ' + closestEdgeThatCanBind.B.edge.index);
+
+            root.debug.log(eDIs);
+            var conA = new root.gameObject.constraint({
+                A: {
+                    body: closestEdgeThatCanBind.A.body.physicsObject.gameObject,
+                    vertex: (closestEdgeThatCanBind.A.edge.index + 1) % 4,
+                    attachTo: self.gameObject
+                },
+                B: {
+                    body: closestEdgeThatCanBind.B.body.physicsObject.gameObject,
+                    vertex: (closestEdgeThatCanBind.B.edge.index) % 4
+                },
+            });
+            var conB = new root.gameObject.constraint({
+                A: {
+                    body: closestEdgeThatCanBind.A.body.physicsObject.gameObject,
+                    vertex: (closestEdgeThatCanBind.A.edge.index) % 4,
+                    attachTo: self.gameObject
+                },
+                B: {
+                    body: closestEdgeThatCanBind.B.body.physicsObject.gameObject,
+                    vertex: (closestEdgeThatCanBind.B.edge.index + 1) % 4
+                },
+            });
+            var delay = 1000;
+
+
+            setTimeout(function () {
+                conA.remove();
+                conB.remove();
+                passive.physicsObject.gameObject.remove();
+                passive.physicsObject.gameObject.collideable = false;
+                self.collection.addBlock({
+                    position: newBlockLocation,
+                    delay: 0,
+                });
+            }, delay)
         }
-        self.gameObject.physics.body.onCollide(self.collisionHandler)
-        self.consumedBlocks.push(self.gameObject)
-        root.debug.physics.showBlockVertices(self.gameObject.physics.body);
+        self.gameObject.physics.body.parts[1].onCollide(self.collisionHandler)
+            // root.debug.physics.showBlockVertices(self.gameObject.physics.body);
+        root.debug.physics.showBlockVertices(self.gameObject.physics.body.parts[1]);
     };
     /**
      * Create a new physics instance
@@ -462,6 +588,24 @@ new(function () {
     };
     root.physics.create = new(function (obj) {
         var self = this;
+
+        function addToWorld(obj, body) {
+            if (obj.delay) {
+                setTimeout(function () {
+                    Matter.World.add(root.currentGame.stage.physics.world, body);
+                    root.debug.log({
+                        text: "addToWorld Triggered",
+                        flag: 'warning'
+                    })
+                }, obj.delay)
+            } else {
+                Matter.World.add(root.currentGame.stage.physics.world, body);
+                root.debug.log({
+                    text: "addToWorld Triggered",
+                    flag: 'warning'
+                })
+            }
+        }
         this.scale = (obj && obj.scale) ? obj.scale : 1;
         /**
          * Create a generic physicsObject
@@ -470,7 +614,12 @@ new(function () {
          * @param {b2Vec2} obj.position position of new object
          * @return {physicsObject} A new physics object
          */
-        this.physicsObject = function (obj) {}
+        this.physicsObject = function (obj) {
+                var s = this;
+                this.remove = function () {
+                    Matter.World.remove(root.currentGame.stage.physics.world, s.body)
+                }
+            }
             /**
              * Create a rectangle
              * @extends physicsObject
@@ -493,43 +642,45 @@ new(function () {
             Matter.Vertices.clockwiseSort(this.body.vertices);
             obj.rotation = obj.rotation || 0;
             Matter.Body.rotate(s.body, obj.rotation)
-            Matter.World.add(root.currentGame.stage.physics.world, s.body);
-            //root.debug.physics.showBlockVertices(s.body);
+            addToWorld(obj, s.body)
+                //root.debug.physics.showBlockVertices(s.body);
         }
         this.composite = function (obj) {
             self.physicsObject.call(this, obj);
             var s = this;
             this.body = Matter.Body.create(obj);
             this.body.physicsObject = s;
-            Matter.World.add(root.currentGame.stage.physics.world, s.body)
+            addToWorld(obj, s.body)
         }
         this.constraint = function (obj) {
             self.physicsObject.call(this, obj);
             var s = this;
+            var originA = obj.A.attachTo ? obj.A.attachTo : obj.A.body;
+            var originB = obj.B.attachTo ? obj.B.attachTo : obj.B.body;
             this.body = Matter.Constraint.create({
-                stiffness: obj.stiffness || 0.5,
-                length: 0.01,
+                stiffness: obj.stiffness || 0.1,
+                length: 0.0001,
                 pointA: {
-                    x: obj.A.body.physics.body.vertices[obj.A.vertex].x - obj.A.body.position.x,
-                    y: obj.A.body.physics.body.vertices[obj.A.vertex].y - obj.A.body.position.y
+                    x: obj.A.body.physics.body.vertices[obj.A.vertex].x - originA.position.x,
+                    y: obj.A.body.physics.body.vertices[obj.A.vertex].y - originA.position.y
                 },
                 pointB: {
-                    x: obj.B.body.physics.body.vertices[obj.B.vertex].x - obj.B.body.position.x,
-                    y: obj.B.body.physics.body.vertices[obj.B.vertex].y - obj.B.body.position.y
+                    x: obj.B.body.physics.body.vertices[obj.B.vertex].x - originB.position.x,
+                    y: obj.B.body.physics.body.vertices[obj.B.vertex].y - originB.position.y
                 },
-                bodyA: obj.A.body.physics.body,
-                bodyB: obj.B.body.physics.body
+                bodyA: originA.physics.body,
+                bodyB: originB.physics.body
             })
             this.body.physicsObject = s;
-            Matter.World.add(root.currentGame.stage.physics.world, s.body)
+            addToWorld(obj, s.body)
                 /* root.debug.text.attach({
-                     text: 'A',
+                     text: 'A' + obj.A.body.physics.body.id + obj.B.body.physics.body.id,
                      func: function () {
                          return root.renderer.worldToScreenspace(obj.A.body.physics.body.vertices[obj.A.vertex])
                      }
                  })
                  root.debug.text.attach({
-                     text: 'B',
+                     text: 'B' + obj.A.body.physics.body.id + obj.B.body.physics.body.id,
                      func: function () {
                          return root.renderer.worldToScreenspace(obj.B.body.physics.body.vertices[obj.B.vertex])
                      }
@@ -539,9 +690,9 @@ new(function () {
         this.compound = function (obj) {
             self.physicsObject.call(this, obj);
             var s = this;
-            this.body = Matter.create();
+            this.body = Matter.Body.create();
             this.body.physicsObject = s;
-            Matter.World.add(root.currentGame.stage.physics.world, s.body)
+            addToWorld(obj, s.body)
         }
     })();
     this.renderers = {
@@ -561,7 +712,11 @@ new(function () {
                      * @return {renderObject} A new render object
                      */
                     this.renderObject = function (obj) {
+                        var s = this;
                         this.graphic = new root.renderer.pi.Graphics();
+                        this.remove = function () {
+                            self.pixiStage.removeChild(s.graphic);
+                        }
                     };
                     /**
                      * Create a rectangle
@@ -577,7 +732,7 @@ new(function () {
                         this.fill = obj.color || '0xAAAAAA';
                         this.graphic.pivot.set(obj.width / 2, obj.height / 2);
                         this.graphic.beginFill(this.fill, 1);
-                        this.graphic.drawRect(root.renderer.worldToScreenspace(obj).x, root.renderer.worldToScreenspace(obj).y, obj.width, obj.height);
+                        this.graphic.drawRect(0, 0, obj.width, obj.height);
                         this.graphic.endFill();
                         self.pixiStage.addChild(this.graphic);
                         this.update = function (obj) {

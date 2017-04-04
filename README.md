@@ -96,6 +96,64 @@ _(stub)_
  >  - **obj.target**
     **`gameObject`** *Object to follow *
 
+### **character**
+
+##### **properties**
+
+>**gameObject** 
+**`gameObject`** *the object that represents the character*
+
+>**controller** 
+**`object`** *player-controller for the character*
+
+
+##### **methods**
+
+>**collisionHandler(e)** 
+**`method`** *runs when collision with the character occurs*
+ >  - **e**
+    **`event`** *collision information*
+
+### **collection**
+##### **properties**
+
+>**map** 
+**`map`** *associated map object for saving attached blocks*
+
+>**controller** 
+**`object`** *player-controller for the character*
+
+
+##### **methods**
+
+>**addBlock(obj)** 
+**`method`** *adds a block, only if the specified coordinate does not already have one*
+ >  - **obj.position**
+    **`vector2`** *position of new block*
+     >  - **obj.delay**
+    **`integer`** *in milliseconds, the time before the new block gets added.*
+    
+>**exists(obj)** 
+**`method`** *tests whether a block exists a location*
+ >  - **obj**
+    **`vector2`** *position to test for*
+
+### **map**
+
+##### **methods**
+
+>**add(obj)** 
+**`method`** *adds a block, only if the specified coordinate does not already have one*
+ >  - **obj.gameObject**
+    **`gameObject`** *block to add*
+>  - **obj.position**
+    **`vector2`** *location of new block*
+    
+>**get(obj)** 
+**`method`** *gets a block*
+ >  - **obj**
+    **`vector2`** *position to test for*
+
 ### **gameObject**
 
 #### genericObject
@@ -107,6 +165,14 @@ _(stub)_
 
 >**rotation** 
 **`number`**  *gets or sets the rotation*
+
+
+##### **methods**
+
+>**remove()**
+**`method`** *remove the gameObject from the world* 
+
+
 
 #### block *extends genericObject*
 
@@ -126,7 +192,7 @@ _(stub)_
 **`physicsObject`** *attached physicsObject*
 
 >**renderer**
-**`renderer`** *attached renderer*
+**`renderObject`** *attached renderer*
 
 #### emptyCompound *extends genericObject*
 
@@ -152,6 +218,7 @@ _(stub)_
 _(stub)_
 >  - **obj**
     **`gameObject`** *Object to remove *
+
 
 
 
@@ -200,6 +267,9 @@ _(stub)_
 >**obj.A.vertex**
 **`integer`** *Vertex of object A to attach to*
 
+>**obj.A.attachTo**
+**`integer`** *define a custom object for point A to attach to, overriding A.body*
+
 >**obj.B**
 **`object`**
 
@@ -207,7 +277,11 @@ _(stub)_
 **`gameObject`** *Object B*
 
 >**obj.B.vertex**
-**`integer`** *Vertex of object B to attach to*
+**`gameObject`** *Vertex of object B to attach to*
+
+>**obj.B.attachTo**
+**`gameObject`** *define a custom object for point B to attach to, overriding B.body*
+
 
 ### renderer
 
@@ -225,3 +299,10 @@ _(stub)_
     
 > *returns* **`HTMLElement`** `<canvas>` *canvas currently used*
 
+
+### **renderObject**
+
+##### **methods**
+
+>**remove()** 
+**`method`**  *removes the object*
